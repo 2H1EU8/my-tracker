@@ -1,0 +1,448 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-tracker.local/schemas/my-tracker-backup.schema.json",
+  "title": "My Tracker Backup",
+  "description": "Lossless normalized backup and restore format.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "format",
+    "schemaVersion",
+    "appVersion",
+    "exportedAt",
+    "data"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "https://my-tracker.local/schemas/my-tracker-backup.schema.json"
+    },
+    "format": {
+      "const": "my-tracker/backup"
+    },
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "appVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50
+    },
+    "exportedAt": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "goals",
+        "phases",
+        "tasks",
+        "checklistItems",
+        "notes",
+        "reminders",
+        "settings"
+      ],
+      "properties": {
+        "goals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/goal"
+          }
+        },
+        "phases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/phase"
+          }
+        },
+        "tasks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/task"
+          }
+        },
+        "checklistItems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/checklistItem"
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/note"
+          }
+        },
+        "reminders": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/reminder"
+          }
+        },
+        "settings": {
+          "$ref": "#/$defs/settings"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "\\S"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240,
+      "pattern": "\\S"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 10000,
+      "pattern": "\\S"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "timeZone": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "pattern": "^(?:UTC|[A-Za-z_+-]+(?:/[A-Za-z0-9_+-]+)+)$"
+    },
+    "position": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "goal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "status",
+        "position",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "description": {
+          "$ref": "#/$defs/text"
+        },
+        "status": {
+          "enum": ["active", "completed", "archived"]
+        },
+        "color": {
+          "enum": ["amber", "sage", "blue", "mauve", "clay"]
+        },
+        "position": {
+          "$ref": "#/$defs/position"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "updatedAt": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "goalId",
+        "title",
+        "position",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "goalId": {
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "description": {
+          "$ref": "#/$defs/text"
+        },
+        "position": {
+          "$ref": "#/$defs/position"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "updatedAt": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "goalId",
+        "phaseId",
+        "title",
+        "status",
+        "priority",
+        "position",
+        "notifyAtDue",
+        "createdAt",
+        "updatedAt"
+      ],
+      "dependentRequired": {
+        "dueAt": ["timeZone"],
+        "timeZone": ["dueAt"]
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "done"
+              }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "required": ["completedAt"]
+          },
+          "else": {
+            "not": {
+              "required": ["completedAt"]
+            }
+          }
+        }
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "goalId": {
+          "$ref": "#/$defs/id"
+        },
+        "phaseId": {
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "description": {
+          "$ref": "#/$defs/text"
+        },
+        "status": {
+          "enum": ["todo", "in_progress", "done"]
+        },
+        "priority": {
+          "enum": ["low", "medium", "high"]
+        },
+        "position": {
+          "$ref": "#/$defs/position"
+        },
+        "dueAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "timeZone": {
+          "$ref": "#/$defs/timeZone"
+        },
+        "notifyAtDue": {
+          "type": "boolean"
+        },
+        "completedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "updatedAt": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "checklistItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "taskId",
+        "title",
+        "isCompleted",
+        "position",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "taskId": {
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "isCompleted": {
+          "type": "boolean"
+        },
+        "position": {
+          "$ref": "#/$defs/position"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "updatedAt": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "note": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "body", "position", "createdAt", "updatedAt"],
+      "allOf": [
+        {
+          "not": {
+            "required": ["linkedGoalId", "linkedTaskId"]
+          }
+        }
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "body": {
+          "$ref": "#/$defs/text"
+        },
+        "position": {
+          "$ref": "#/$defs/position"
+        },
+        "linkedGoalId": {
+          "$ref": "#/$defs/id"
+        },
+        "linkedTaskId": {
+          "$ref": "#/$defs/id"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "updatedAt": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "reminder": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "dueAt",
+        "timeZone",
+        "state",
+        "createdAt",
+        "updatedAt"
+      ],
+      "allOf": [
+        {
+          "not": {
+            "required": ["linkedGoalId", "linkedTaskId"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "fired"
+              }
+            },
+            "required": ["state"]
+          },
+          "then": {
+            "required": ["firedAt"]
+          },
+          "else": {
+            "not": {
+              "required": ["firedAt"]
+            }
+          }
+        }
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "details": {
+          "$ref": "#/$defs/text"
+        },
+        "dueAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "timeZone": {
+          "$ref": "#/$defs/timeZone"
+        },
+        "state": {
+          "enum": ["scheduled", "fired"]
+        },
+        "firedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "linkedGoalId": {
+          "$ref": "#/$defs/id"
+        },
+        "linkedTaskId": {
+          "$ref": "#/$defs/id"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "updatedAt": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "settings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "timeZone",
+        "theme",
+        "reducedMotion",
+        "notifyTaskDeadlinesByDefault"
+      ],
+      "properties": {
+        "timeZone": {
+          "$ref": "#/$defs/timeZone"
+        },
+        "theme": {
+          "const": "dark"
+        },
+        "reducedMotion": {
+          "type": "boolean"
+        },
+        "notifyTaskDeadlinesByDefault": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

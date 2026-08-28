@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://my-tracker.local/schemas/my-tracker-ai-plan.schema.json",
+  "title": "My Tracker AI Plan",
+  "description": "Nested create-only plan format for human or AI authors.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "format", "schemaVersion", "goals"],
+  "properties": {
+    "$schema": {
+      "const": "https://my-tracker.local/schemas/my-tracker-ai-plan.schema.json"
+    },
+    "format": {
+      "const": "my-tracker/ai-plan"
+    },
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "title": {
+      "$ref": "#/$defs/nonEmptyText"
+    },
+    "goals": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+        "$ref": "#/$defs/goal"
+      }
+    }
+  },
+  "$defs": {
+    "nonEmptyText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 10000,
+      "pattern": "\\S"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240,
+      "pattern": "\\S"
+    },
+    "externalKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z0-9][a-z0-9._:-]*$"
+    },
+    "timeZone": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "pattern": "^(?:UTC|[A-Za-z_+-]+(?:/[A-Za-z0-9_+-]+)+)$"
+    },
+    "deadline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["at", "timeZone"],
+      "properties": {
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "timeZone": {
+          "$ref": "#/$defs/timeZone"
+        },
+        "notifyAtDue": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "checklistItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title"],
+      "properties": {
+        "externalKey": {
+          "$ref": "#/$defs/externalKey"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "isCompleted": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["externalKey", "title"],
+      "properties": {
+        "externalKey": {
+          "$ref": "#/$defs/externalKey"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "description": {
+          "$ref": "#/$defs/nonEmptyText"
+        },
+        "status": {
+          "enum": ["todo", "in_progress", "done"],
+          "default": "todo"
+        },
+        "priority": {
+          "enum": ["low", "medium", "high"],
+          "default": "medium"
+        },
+        "deadline": {
+          "$ref": "#/$defs/deadline"
+        },
+        "checklist": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/checklistItem"
+          }
+        }
+      }
+    },
+    "phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["externalKey", "title", "tasks"],
+      "properties": {
+        "externalKey": {
+          "$ref": "#/$defs/externalKey"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "description": {
+          "$ref": "#/$defs/nonEmptyText"
+        },
+        "tasks": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/task"
+          }
+        }
+      }
+    },
+    "goal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["externalKey", "title", "phases"],
+      "properties": {
+        "externalKey": {
+          "$ref": "#/$defs/externalKey"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "description": {
+          "$ref": "#/$defs/nonEmptyText"
+        },
+        "color": {
+          "enum": ["amber", "sage", "blue", "mauve", "clay"]
+        },
+        "phases": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/phase"
+          }
+        }
+      }
+    }
+  }
+}

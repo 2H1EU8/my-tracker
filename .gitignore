@@ -1,0 +1,29 @@
+# Dependencies and local package cache
+node_modules/
+.pnpm-store/
+
+# WXT and build outputs
+.output/
+.wxt/
+dist/
+build/
+
+# Test output
+coverage/
+
+# Local secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Logs
+*.log
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo

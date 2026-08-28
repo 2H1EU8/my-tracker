@@ -1,0 +1,87 @@
+{
+  "$schema": "https://my-tracker.local/schemas/my-tracker-backup.schema.json",
+  "format": "my-tracker/backup",
+  "schemaVersion": "1.0.0",
+  "appVersion": "0.1.0",
+  "exportedAt": "2026-08-28T08:00:00Z",
+  "data": {
+    "goals": [
+      {
+        "id": "goal-01",
+        "title": "Ship My Tracker MVP",
+        "description": "Build and validate the local-first extension.",
+        "status": "active",
+        "color": "amber",
+        "position": 0,
+        "createdAt": "2026-08-28T07:00:00Z",
+        "updatedAt": "2026-08-28T07:30:00Z"
+      }
+    ],
+    "phases": [
+      {
+        "id": "phase-01",
+        "goalId": "goal-01",
+        "title": "Foundation",
+        "position": 0,
+        "createdAt": "2026-08-28T07:05:00Z",
+        "updatedAt": "2026-08-28T07:05:00Z"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "task-01",
+        "goalId": "goal-01",
+        "phaseId": "phase-01",
+        "title": "Create extension shell",
+        "status": "in_progress",
+        "priority": "high",
+        "position": 0,
+        "dueAt": "2026-09-15T03:00:00Z",
+        "timeZone": "Asia/Ho_Chi_Minh",
+        "notifyAtDue": true,
+        "createdAt": "2026-08-28T07:10:00Z",
+        "updatedAt": "2026-08-28T07:30:00Z"
+      }
+    ],
+    "checklistItems": [
+      {
+        "id": "check-01",
+        "taskId": "task-01",
+        "title": "Production build succeeds",
+        "isCompleted": false,
+        "position": 0,
+        "createdAt": "2026-08-28T07:12:00Z",
+        "updatedAt": "2026-08-28T07:12:00Z"
+      }
+    ],
+    "notes": [
+      {
+        "id": "note-01",
+        "body": "Keep the first milestone intentionally small.",
+        "position": 0,
+        "linkedGoalId": "goal-01",
+        "createdAt": "2026-08-28T07:20:00Z",
+        "updatedAt": "2026-08-28T07:20:00Z"
+      }
+    ],
+    "reminders": [
+      {
+        "id": "reminder-01",
+        "title": "Review the first vertical slice",
+        "details": "Run the journey in an unpacked Chrome profile.",
+        "dueAt": "2026-09-16T03:00:00Z",
+        "timeZone": "Asia/Ho_Chi_Minh",
+        "state": "scheduled",
+        "linkedTaskId": "task-01",
+        "createdAt": "2026-08-28T07:25:00Z",
+        "updatedAt": "2026-08-28T07:25:00Z"
+      }
+    ],
+    "settings": {
+      "timeZone": "Asia/Ho_Chi_Minh",
+      "theme": "dark",
+      "reducedMotion": false,
+      "notifyTaskDeadlinesByDefault": true
+    }
+  }
+}

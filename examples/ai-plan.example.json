@@ -1,0 +1,95 @@
+{
+  "$schema": "https://my-tracker.local/schemas/my-tracker-ai-plan.schema.json",
+  "format": "my-tracker/ai-plan",
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-08-28T08:00:00Z",
+  "title": "My Tracker MVP plan",
+  "goals": [
+    {
+      "externalKey": "goal.my-tracker-mvp",
+      "title": "Ship My Tracker MVP",
+      "description": "Build and validate a local-first Chrome new-tab tracker.",
+      "color": "amber",
+      "phases": [
+        {
+          "externalKey": "phase.foundation",
+          "title": "Foundation",
+          "description": "Prove the extension shell and durable goal workflow.",
+          "tasks": [
+            {
+              "externalKey": "task.extension-shell",
+              "title": "Create the Manifest V3 New Tab shell",
+              "description": "Set up the WXT React entrypoint and verify an unpacked production build in Chrome.",
+              "status": "todo",
+              "priority": "high",
+              "checklist": [
+                {
+                  "externalKey": "check.shell-build",
+                  "title": "Production build succeeds"
+                },
+                {
+                  "externalKey": "check.shell-load",
+                  "title": "Unpacked extension replaces New Tab"
+                }
+              ]
+            },
+            {
+              "externalKey": "task.persistence-slice",
+              "title": "Persist the first Goal to Task slice",
+              "description": "Create a goal, phase, and task; move the task and verify state after reopening.",
+              "status": "todo",
+              "priority": "high",
+              "deadline": {
+                "at": "2026-09-15T10:00:00+07:00",
+                "timeZone": "Asia/Ho_Chi_Minh",
+                "notifyAtDue": true
+              },
+              "checklist": [
+                {
+                  "title": "Repository transaction test passes"
+                },
+                {
+                  "title": "Real Chrome persistence journey passes"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "externalKey": "phase.import-backup",
+          "title": "Import and recovery",
+          "tasks": [
+            {
+              "externalKey": "task.ai-import",
+              "title": "Import a schema-valid AI plan",
+              "status": "todo",
+              "priority": "medium",
+              "checklist": [
+                {
+                  "title": "Invalid plan writes nothing"
+                },
+                {
+                  "title": "Preview matches imported counts"
+                }
+              ]
+            },
+            {
+              "externalKey": "task.backup-roundtrip",
+              "title": "Prove backup and restore round trip",
+              "status": "todo",
+              "priority": "high",
+              "checklist": [
+                {
+                  "title": "Export validates against backup schema"
+                },
+                {
+                  "title": "Clean-profile restore preserves IDs and state"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
