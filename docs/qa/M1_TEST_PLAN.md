@@ -2,12 +2,15 @@
 
 ## Status
 
-Planning complete; execution not started.
+Automated and static execution complete on 2026-08-28. Manual unpacked-Chrome
+execution is blocked because no dedicated/disposable Chrome profile was
+available through the permitted browser-control surface. Release recommendation:
+`Blocked`.
 
-This document defines independent QA coverage for the M1 durable goal vertical
-slice. It does not record pass evidence and must not be used to declare M1
-complete until Dev supplies a stable handoff and QA executes the plan against
-that exact production build.
+This document defines independent QA coverage and records the execution evidence
+for the M1 durable goal vertical slice. Automated/static evidence is complete;
+manual unpacked-Chrome criteria remain explicitly blocked and must not be
+treated as passed.
 
 ## Objective
 
@@ -413,6 +416,286 @@ Steps:
 Expected: a fresh reader can build, identify the directory, install, open New
 Tab, and exercise close/reopen without hidden knowledge.
 
+## QA execution report — 2026-08-28
+
+### Build under test
+
+- Workspace: `/Users/macbookpro/Workspaces/my-tracker`
+- Package version: `0.1.0`
+- WXT build target: Chrome MV3 production
+- Production directory: `.output/chrome-mv3`
+- Manifest SHA-256:
+  `7cc10705cdbc6f95aa3151b6345cdbb0486df94bbb1284815cb383da66f8cb15`
+- New Tab bundle SHA-256:
+  `80ada6fec4bea5e6ad4971be294e6e5b045426980ae797668c853a44537cd729`
+
+QA rebuilt the directory before inspection. No dependency command, source edit,
+database deletion, Git stage/commit/push, or remote action was performed.
+
+### Command evidence
+
+| Command | Result | Observed evidence |
+| --- | --- | --- |
+| `pnpm test:unit` | Pass | 2 files, 11 tests passed |
+| `pnpm test:integration` | Pass | 1 file, 5 tests passed |
+| `pnpm typecheck` | Pass | `tsc --noEmit`, exit 0, no diagnostics |
+| `pnpm test` | Pass | 3 files, 16 tests passed |
+| `pnpm build` | Pass | WXT 0.21.4 production Chrome MV3 build, 4 files, 219.91 kB |
+| `pnpm run test:integration -- --reporter=verbose` | Pass | Supplemental independent rerun; same 5 integration tests passed |
+
+There is no configured lint script, so no lint command was invented or run.
+
+### Static package evidence
+
+- Generated `manifest.json` has `manifest_version: 3`.
+- `chrome_url_overrides.newtab` is `newtab.html`, and that file exists in the
+  production directory.
+- Generated `permissions` and `host_permissions` are both empty arrays.
+- The manifest has no background script, content script, external connection,
+  or other permission-bearing M1 surface.
+- Source scan found no application `fetch`, XHR, WebSocket, beacon, analytics,
+  telemetry, remote-font, or remote-asset URL.
+- Production bundle scan found no XHR, WebSocket, beacon, telemetry vendor, or
+  remote-font string. Its only protocol strings are React's inert minified-error
+  help URL and standard W3 namespace identifiers.
+- The bundle contains one Vite module-preload polyfill `fetch` call. The generated
+  HTML has no `modulepreload` link, and all script/style references are local
+  extension paths; this is not evidence of an external runtime request.
+- Production CSS contains no `url(...)` or `@font-face` rule.
+- `docs/M1_RUNBOOK.md` names `.output/chrome-mv3`, disposable-profile unpacked
+  installation steps, the close/reopen journey, DevTools Network inspection,
+  and all three bounded QA query switches.
+
+### Automated fault and rollback evidence
+
+- `qaDelayLoadMs` is clamped to 0–5000 ms and delays only the first read in the
+  page-local QA adapter.
+- `qaFailLoadOnce` rejects one initial read and then allows Retry to use the real
+  unchanged repository.
+- `qaFailNextWrite` rejects one write before its transaction begins and then
+  permits an in-page retry.
+- The integration suite independently injects failure after one task write in a
+  multi-record move, aborts the IndexedDB transaction, closes the connection,
+  reconnects to the same disposable database, and compares the complete
+  workspace with the pre-move snapshot.
+- Reconnect coverage also proves hierarchy, renamed title, status, and Todo order
+  survive a new adapter connection.
+- `fake-indexeddb` databases use test-specific names and contain no user data.
+
+### Scenario evidence
+
+```text
+Scenario: Q01 — Configured checks, production package, and manifest
+Build/version: 0.1.0; manifest SHA-256 7cc10705...f8cb15
+Preconditions: Existing installed dependencies; QA rebuilt production output.
+Steps: Re-ran all configured checks; parsed generated manifest; inspected output and bundle strings.
+Expected: Checks pass; valid New Tab MV3 package; empty permissions; no remote dependency.
+Observed: 11 unit, 5 integration, and 16 full-suite tests passed; type-check/build passed; manifest and static boundary match M1.
+Evidence: Command output, generated manifest, file digests, static scans recorded above.
+Result: pass
+Risk/notes: Real unpacked load and DevTools Network remain Q04/Q13 manual evidence.
+```
+
+```text
+Scenario: Q02 — Domain rules and use-case invariants
+Build/version: Current 0.1.0 workspace under the production build above.
+Preconditions: Fixed clocks/IDs in unit fixtures; no user data.
+Steps: Re-ran unit suite and inspected named cases for boundaries and rejected writes.
+Expected: Title, defaults, parent, status, timestamp, and ordering rules are deterministic.
+Observed: Exact-240/241, duplicate IDs/order, trims, three statuses, Done/reopen, rename isolation, append, before/after, parent mismatch, unknown status, and missing move target cases pass.
+Evidence: tests/unit/domain-rules.test.ts and tests/unit/tracker-service.test.ts; 11/11 pass.
+Result: pass
+Risk/notes: User-visible inline rendering and focus remain manual scenarios.
+```
+
+```text
+Scenario: Q03 — IndexedDB persistence, normalization, and rollback
+Build/version: Current 0.1.0 workspace under the production build above.
+Preconditions: Isolated fake-indexeddb factories and test-specific database names.
+Steps: Re-ran integration suite; inspected reconnect, normalization, pre-write failure, and post-first-write abort cases.
+Expected: Commits persist; positions remain contiguous; failed multi-record writes commit nothing.
+Observed: New connections restored hierarchy/title/status/order; source/destination positions normalized; post-write failure reconnected to the exact pre-move snapshot.
+Evidence: tests/integration/indexeddb-tracker-database.test.ts; 5/5 pass.
+Result: pass
+Risk/notes: Real Chrome IndexedDB remains covered only by blocked manual reopen evidence.
+```
+
+```text
+Scenario: Q04 — Unpacked install, loading, and empty Home
+Build/version: Production package above.
+Preconditions: Requires a verified dedicated/disposable Chrome profile.
+Steps: Browser capability was checked without opening, listing, or claiming tabs.
+Expected: Install unpacked and observe delayed loading then true empty state.
+Observed: Only the current user Chrome connection was available; profile isolation could not be verified safely.
+Evidence: No Chrome tab or personal browser data was opened or inspected.
+Result: blocked
+Risk/notes: Blocks AC 1, 4, and 5.
+```
+
+```text
+Scenario: Q05 — Keyboard-only create hierarchy and empty transitions
+Build/version: Production package above.
+Preconditions: Requires Q04 dedicated unpacked profile.
+Steps: Not executed because the safe Chrome precondition was unavailable.
+Expected: Keyboard Goal -> Phase -> Task journey with visible focus.
+Observed: No manual browser evidence.
+Evidence: None; automated domain evidence is not a UI substitute.
+Result: blocked
+Risk/notes: Blocks AC 6 and 7 and the UI portion of AC 8.
+```
+
+```text
+Scenario: Q06 — Rename, validation boundaries, and safe text rendering
+Build/version: Production package above.
+Preconditions: Requires Q04 dedicated unpacked profile.
+Steps: Not executed; unit rules and JSX text rendering were inspected only.
+Expected: Inline errors preserve content; Escape/focus work; markup stays literal.
+Observed: Automated rules pass and source renders titles as React text, but no user-visible evidence was captured.
+Evidence: Unit suite and read-only source inspection only.
+Result: blocked
+Risk/notes: Blocks final AC 8, 9, and 10 evidence.
+```
+
+```text
+Scenario: Q07 — Board structure and empty columns
+Build/version: Production package above.
+Preconditions: Requires Q04 dedicated unpacked profile.
+Steps: Not executed; generated bundle/source exposes Todo, In Progress, Done and empty copy.
+Expected: Exactly three visible ordered columns with operable empty states.
+Observed: Static implementation matches; no unpacked visual/interactive evidence.
+Evidence: Unit status assertion and production bundle inspection only.
+Result: blocked
+Risk/notes: Blocks AC 12 UI evidence.
+```
+
+```text
+Scenario: Q08 — Pointer named movement, append, reorder, and Done lifecycle
+Build/version: Production package above.
+Preconditions: Requires seeded dedicated unpacked profile.
+Steps: Not executed; automated append/reorder/Done rules pass.
+Expected: Pointer controls produce deterministic stored state.
+Observed: No pointer interaction against the production UI.
+Evidence: Unit/integration output only.
+Result: blocked
+Risk/notes: Blocks AC 13, 14, and 16 manual evidence.
+```
+
+```text
+Scenario: Q09 — Keyboard movement, focus, and announcement
+Build/version: Production package above.
+Preconditions: Requires seeded dedicated unpacked profile and assistive/focus inspection.
+Steps: Not executed.
+Expected: Keyboard result equals pointer result; moved task retains focus; live region announces context.
+Observed: Source contains named buttons, pending focus selector, and polite/assertive regions; runtime behavior was not observed.
+Evidence: Read-only source/bundle inspection only.
+Result: blocked
+Risk/notes: Blocks AC 13 and 15.
+```
+
+```text
+Scenario: Q10 — Close and reopen persistence
+Build/version: Production package above.
+Preconditions: Requires a dedicated unpacked profile with seeded data.
+Steps: Automated adapter reconnect passed; real New Tab close/reopen not executed.
+Expected: Same hierarchy, titles, status, and order after a new tab opens.
+Observed: Fake IndexedDB reconnect passes; no real-profile evidence.
+Evidence: Integration suite only.
+Result: blocked
+Risk/notes: Blocks final AC 14, 17, and 20 evidence.
+```
+
+```text
+Scenario: Q11 — Create, rename, and move save failures with retry
+Build/version: Production package above.
+Preconditions: Requires a dedicated unpacked profile and documented QA URL seams.
+Steps: Verified seams and rollback tests statically/automatically; did not exercise form/move retry in Chrome.
+Expected: Visible Save failed, retained draft/context, unchanged data, one successful retry.
+Observed: One-shot pre-write retry and post-write rollback automation pass; UI recovery remains unobserved.
+Evidence: Integration suite, QA adapter source, and runbook.
+Result: blocked
+Risk/notes: Blocks final AC 18 evidence.
+```
+
+```text
+Scenario: Q12 — Initial load/widget failure recovery
+Build/version: Production package above.
+Preconditions: Requires dedicated unpacked profile and qaFailLoadOnce URL.
+Steps: Verified one-shot source/runbook behavior; did not open the URL in Chrome.
+Expected: Shell plus Retry loading, then real unchanged dataset.
+Observed: Deterministic seam exists; no browser observation.
+Evidence: QA adapter and production bundle inspection only.
+Result: blocked
+Risk/notes: Blocks AC 3.
+```
+
+```text
+Scenario: Q13 — No-network and permission boundary
+Build/version: Production package above.
+Preconditions: Requires dedicated unpacked profile and DevTools Network access.
+Steps: Parsed manifest and scanned source/bundle; offline Chrome journey was not run.
+Expected: Empty permissions and no HTTP(S)/WebSocket requests during the journey.
+Observed: Static boundary passes; no preserved DevTools Network log exists.
+Evidence: Generated manifest and static scan above.
+Result: blocked
+Risk/notes: AC 21 passes statically; AC 2 remains blocked.
+```
+
+```text
+Scenario: Q14 — Installation documentation as a fresh-reader test
+Build/version: Production package above.
+Preconditions: Requires dedicated Chrome profile to follow installation through completion.
+Steps: Read runbook and verified every named path/switch exists; did not install unpacked.
+Expected: Fresh reader completes install and reopen without hidden knowledge.
+Observed: Documentation is complete statically, but its browser procedure could not be executed safely.
+Evidence: docs/M1_RUNBOOK.md and generated output inspection.
+Result: blocked
+Risk/notes: Blocks final AC 22 evidence.
+```
+
+### Acceptance criterion result summary
+
+| AC | Result | Independent QA evidence |
+| --- | --- | --- |
+| 1 | Blocked | Build/manifest pass; unpacked New Tab not exercised |
+| 2 | Blocked | Static no-remote scan passes; no offline DevTools journey |
+| 3 | Blocked | Failure seam exists; recoverable browser state not observed |
+| 4 | Blocked | Delay seam exists; false-empty transition not observed |
+| 5 | Blocked | Empty UI exists statically; no dedicated-profile interaction |
+| 6 | Blocked | Empty hierarchy/column implementation exists; no Chrome evidence |
+| 7 | Blocked | Named keyboard controls exist; full keyboard journey not executed |
+| 8 | Blocked | Unit/integration rename rules pass; UI/reopen rename not executed |
+| 9 | Blocked | Boundary validation passes; inline/preserved-value UI not executed |
+| 10 | Blocked | React text rendering found; malicious-literal browser test not executed |
+| 11 | Pass | Parent mismatch rejects and leaves task collection unchanged |
+| 12 | Blocked | Exact status constant passes; visible board not observed |
+| 13 | Blocked | Named buttons exist; pointer and keyboard runtime paths not executed |
+| 14 | Blocked | Append/reorder/reconnect automation passes; manual production path absent |
+| 15 | Blocked | Focus/live-region implementation found; assistive runtime evidence absent |
+| 16 | Blocked | Done/reopen automation passes; production UI lifecycle not exercised |
+| 17 | Blocked | Adapter reconnect passes; real New Tab close/reopen absent |
+| 18 | Blocked | Fault/rollback automation passes; form/move recovery UI absent |
+| 19 | Pass | Failure after one task write aborts and reconnect equals pre-move snapshot |
+| 20 | Blocked | Version-1 adapter reopen passes; real Chrome store reopen absent |
+| 21 | Pass | Generated manifest has empty permissions and host permissions |
+| 22 | Blocked | Runbook content is complete; fresh-reader Chrome execution absent |
+
+Summary: 3 Pass, 0 Fail, 19 Blocked.
+
+### Release recommendation
+
+`Blocked` — do not declare M1 passed.
+
+All automated, transaction, type, build, manifest, static local-only, and
+runbook checks completed without a defect. However, the required unpacked Chrome
+acceptance journey could not be run in a verified dedicated/disposable profile.
+The blocker covers visible loading/empty/error states, keyboard and pointer
+operation, focus/live announcements, real IndexedDB reopen, offline Network
+evidence, and fresh-reader installation.
+
+This is an evidence/environment blocker, not a demonstrated product failure.
+M1 must remain `in progress` until Q04–Q14 are executed against this exact build
+or a newly rebuilt, re-identified production artifact.
+
 ## Final release decision
 
 QA may recommend `Pass` only when:
@@ -428,20 +711,20 @@ Otherwise the recommendation is `Fail` for a reproducible defect or `Blocked`
 when required evidence/environment is unavailable. Product gaps and code defects
 must be labeled separately and linked to the exact acceptance criterion.
 
-## Early testability gaps observed during implementation
+## Testability gap recheck
 
-These are read-only observations from an in-progress implementation, not final
-defects or release results. Re-inspect them after Dev handoff.
+The planning gaps were re-inspected after the stable Dev handoff.
 
-| Gap | Current observation | Evidence needed from Dev | Affected AC |
+| Gap | Recheck result | Remaining evidence | Status |
 | --- | --- | --- | --- |
-| G1 | `test:integration` is configured, but no `tests/integration/` test file is currently present. | IndexedDB integration suite covering reconnect, position queries, rollback, and version-1 reopen | 11, 14, 17, 19, 20 |
-| G2 | `FailNextWriteDatabase` rejects before the transaction operation starts. It proves error UI but cannot prove rollback after a partial multi-record write. | Mid-operation failure adapter/test that throws after at least one task write and verifies a fresh connection sees the exact pre-move snapshot | 18, 19 |
-| G3 | A one-shot next-write query seam exists, but no deterministic delayed-load, load-failure, or widget-failure seam is currently visible. | Repeatable production/manual or component-level harness for false-empty and blank-page recovery checks | 3, 4 |
-| G4 | The global Retry replays the service action outside the originating form/editor lifecycle. Current code needs explicit verification that a successful retry clears local errors/drafts and cannot cause a duplicate submit. | UI/component test or manual evidence for failed create and rename followed by Retry | 18 |
-| G5 | Current unit tests cover the core happy rules but do not yet show exact-240 acceptance, duplicate-title identity, after-direction reorder, unknown runtime status/task, or rename timestamp/non-target preservation. | Named unit cases and snapshots for the missing boundaries | 8, 9, 11, 14, 16 |
-| G6 | No UI/component automation is currently configured for loading transitions, inline errors, focus restoration, or live announcements. | Either deterministic automated coverage or strong repeatable manual Chrome evidence | 3-10, 13, 15, 18 |
-| G7 | Unpacked installation instructions and a resolved production output path are not currently present in the repository file list. | Durable install document naming the exact directory and reopen steps | 1, 22 |
-| G8 | The one-shot failure hook is selected by a query parameter in the production entrypoint but is not yet documented for QA handoff. | Exact safe URL/use instructions, scope, reset behavior, and confirmation it cannot affect unrelated profiles/data | 18 |
+| G1 | Integration suite now has five passing IndexedDB cases. | Real Chrome reopen remains manual. | Automated gap resolved |
+| G2 | Post-first-write move failure abort/reconnect test passes. | None for AC 19; UI move failure remains Q11. | Rollback gap resolved |
+| G3 | `qaDelayLoadMs` and `qaFailLoadOnce` exist in source, bundle, and runbook. | Dedicated-profile browser execution. | Seam resolved; manual blocked |
+| G4 | Form/rename retries remain local; global retry is limited to move/reorder. | Browser proof that errors clear and no duplicate is created. | Code gap addressed; manual blocked |
+| G5 | Boundary unit cases were expanded and all 11 unit tests pass. | UI portions remain manual. | Automated gap resolved |
+| G6 | UI behavior remains intentionally manual with no added component dependency. | Q04–Q13 dedicated-profile evidence. | Unresolved evidence blocker |
+| G7 | `docs/M1_RUNBOOK.md` names the exact production path and reopen steps. | Follow procedure in disposable Chrome. | Documentation gap resolved; manual blocked |
+| G8 | All QA URLs, reset behavior, scope, and safety are documented. | Execute them in disposable Chrome. | Documentation gap resolved; manual blocked |
 
-No source file was changed or tested as final evidence during this planning pass.
+Only this QA artifact was modified during execution. Source and other project
+documentation were inspected read-only.

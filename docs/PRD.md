@@ -2,7 +2,8 @@
 
 ## Status
 
-Baseline approved for MVP planning. Implementation has not started.
+Baseline approved for MVP delivery. Milestone 1 implementation is in progress
+and remains open until the independent unpacked-Chrome QA exit gate passes.
 
 ## Actors
 

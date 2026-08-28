@@ -90,6 +90,7 @@ not semantic categories.
 | `color.surface.3` | `#252A23` | Hovered neutral surface |
 | `color.border` | `#353B32` | Default one-pixel divider |
 | `color.border.strong` | `#5B6456` | Selected or emphasized border |
+| `color.border.interactive` | `#66705F` | Resting input/button boundary; at least 3:1 against dark surfaces |
 | `color.text.primary` | `#F2F1E9` | Headings and primary labels |
 | `color.text.secondary` | `#B9BDB2` | Body copy and metadata |
 | `color.text.muted` | `#92988D` | Low-emphasis helper text |
@@ -175,6 +176,7 @@ The system uses an 8 px rhythm with 4 px adjustments for compact internals.
 | `radius.card` | `8px` | Task cards and columns |
 | `radius.panel` | `12px` | Major panels |
 | `border.default` | `1px solid #353B32` | Default separation |
+| `border.interactive` | `1px solid #66705F` | Resting interactive controls |
 | `border.focus` | `2px solid #D7E58A` | Visible focus ring |
 | `shadow.rest` | `none` | Default surfaces |
 | `shadow.overlay` | `0 8px 24px rgba(0,0,0,0.04)` | Menus/dialogs only |
@@ -269,7 +271,7 @@ Primary button:
 
 Secondary button:
 
-- Transparent or `color.surface.1`, default border, primary text.
+- Transparent or `color.surface.1`, interactive border, primary text.
 - Used for cancel, retry, and lower-priority actions.
 
 Text action:
@@ -283,7 +285,8 @@ Busy controls retain their width and label context, for example `Creating goal`.
 ### 5.3 Inputs and inline editors
 
 - Label remains visible above the field; placeholder is an example, not a label.
-- Dark `surface.2`, one-pixel border, `4px` radius, `16px` horizontal padding.
+- Dark `surface.2`, one-pixel interactive border, `4px` radius, `16px`
+  horizontal padding.
 - Focus uses the global focus token, not color fill alone.
 - Enter confirms a single-line create/rename action; Escape cancels and restores
   the previous value.

@@ -28,6 +28,10 @@ interface TrackerAppProps {
 
 type SaveState = "idle" | "saving" | "saved" | "failed";
 
+type PendingNavigation =
+  | { type: "back" }
+  | { type: "phase"; phaseId: string };
+
 interface RetryOperation {
   action: () => Promise<unknown>;
   successMessage: string | ((result: unknown) => string);
@@ -45,6 +49,7 @@ interface EntityFormProps {
 interface RenameEditorProps {
   entityLabel: string;
   title: string;
+  onDraftStateChange?: (editorId: string, hasUnsavedDraft: boolean) => void;
   onRename: (title: string) => Promise<void>;
 }
 
@@ -65,10 +70,16 @@ function EntityForm({
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string>();
   const [isSaving, setIsSaving] = useState(false);
+  const isSavingRef = useRef(false);
   const errorId = `${inputId}-error`;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isSavingRef.current) {
+      return;
+    }
+
+    isSavingRef.current = true;
     setIsSaving(true);
     setError(undefined);
 
@@ -78,12 +89,13 @@ function EntityForm({
     } catch (submissionError) {
       setError(getErrorMessage(submissionError));
     } finally {
+      isSavingRef.current = false;
       setIsSaving(false);
     }
   }
 
   return (
-    <form className="entity-form" onSubmit={submit}>
+    <form aria-busy={isSaving} className="entity-form" onSubmit={submit}>
       <label htmlFor={inputId}>{label}</label>
       <div className="form-row">
         <input
@@ -94,12 +106,13 @@ function EntityForm({
           maxLength={241}
           onChange={(event) => setDraft(event.currentTarget.value)}
           onKeyDown={(event) => {
-            if (event.key === "Escape") {
+            if (event.key === "Escape" && !isSavingRef.current) {
               setDraft("");
               setError(undefined);
             }
           }}
           placeholder={placeholder}
+          readOnly={isSaving}
           value={draft}
         />
         <button className="button-primary" disabled={isSaving} type="submit">
@@ -115,15 +128,32 @@ function EntityForm({
   );
 }
 
-function RenameEditor({ entityLabel, onRename, title }: RenameEditorProps) {
+function RenameEditor({
+  entityLabel,
+  onDraftStateChange,
+  onRename,
+  title,
+}: RenameEditorProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(title);
   const [error, setError] = useState<string>();
   const [isSaving, setIsSaving] = useState(false);
+  const isSavingRef = useRef(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const editorId = useId();
   const errorId = `${editorId}-error`;
+  const hasUnsavedDraft =
+    isEditing && (draft !== title || error !== undefined || isSaving);
+
+  useEffect(() => {
+    onDraftStateChange?.(editorId, hasUnsavedDraft);
+  }, [editorId, hasUnsavedDraft, onDraftStateChange]);
+
+  useEffect(
+    () => () => onDraftStateChange?.(editorId, false),
+    [editorId, onDraftStateChange],
+  );
 
   function cancel() {
     setDraft(title);
@@ -134,6 +164,11 @@ function RenameEditor({ entityLabel, onRename, title }: RenameEditorProps) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isSavingRef.current) {
+      return;
+    }
+
+    isSavingRef.current = true;
     setIsSaving(true);
     setError(undefined);
 
@@ -144,6 +179,7 @@ function RenameEditor({ entityLabel, onRename, title }: RenameEditorProps) {
     } catch (submissionError) {
       setError(getErrorMessage(submissionError));
     } finally {
+      isSavingRef.current = false;
       setIsSaving(false);
     }
   }
@@ -151,6 +187,7 @@ function RenameEditor({ entityLabel, onRename, title }: RenameEditorProps) {
   if (!isEditing) {
     return (
       <button
+        aria-label={`Rename ${entityLabel} ${title}`}
         className="button-text"
         onClick={() => {
           setDraft(title);
@@ -166,8 +203,8 @@ function RenameEditor({ entityLabel, onRename, title }: RenameEditorProps) {
   }
 
   return (
-    <form className="rename-form" onSubmit={submit}>
-      <label className="sr-only" htmlFor={editorId}>
+    <form aria-busy={isSaving} className="rename-form" onSubmit={submit}>
+      <label className="rename-label" htmlFor={editorId}>
         New {entityLabel} title
       </label>
       <input
@@ -177,11 +214,12 @@ function RenameEditor({ entityLabel, onRename, title }: RenameEditorProps) {
         maxLength={241}
         onChange={(event) => setDraft(event.currentTarget.value)}
         onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
-          if (event.key === "Escape") {
+          if (event.key === "Escape" && !isSavingRef.current) {
             event.preventDefault();
             cancel();
           }
         }}
+        readOnly={isSaving}
         ref={inputRef}
         value={draft}
       />
@@ -236,11 +274,13 @@ export function TrackerApp({ service }: TrackerAppProps) {
 
   const loadWorkspace = useCallback(async () => {
     setLoadError(undefined);
+    setAnnouncement("");
     try {
       const workspace = await service.getWorkspace();
       setSnapshot(workspace);
     } catch {
       setLoadError("Local storage is unavailable. Retry loading.");
+      setAnnouncement("Local data could not be loaded. Retry loading.");
     }
   }, [service]);
 
@@ -277,6 +317,7 @@ export function TrackerApp({ service }: TrackerAppProps) {
       retryMode: "global" | "local" = "global",
     ) => {
       setSaveState("saving");
+      setAnnouncement("");
       setUrgentAnnouncement("");
       let result: unknown;
       try {
@@ -292,11 +333,13 @@ export function TrackerApp({ service }: TrackerAppProps) {
             ? { action, successMessage, getFocusSelector }
             : undefined,
         );
-        setUrgentAnnouncement(
-          retryMode === "global"
-            ? "Changes are not saved. Retry the last action."
-            : "Changes are not saved. Retry from the current form.",
-        );
+        if (retryMode === "local") {
+          setUrgentAnnouncement(
+            "Changes are not saved. Your draft is still here. Retry from the current form.",
+          );
+        } else {
+          setAnnouncement("This action was not saved. Retry the last action.");
+        }
         throw error;
       }
 
@@ -347,7 +390,7 @@ export function TrackerApp({ service }: TrackerAppProps) {
           <p className="pixel-label">LOCAL NEW TAB</p>
           <p className="brand">My Tracker</p>
         </div>
-        <p className={`save-state save-state-${saveState}`} aria-live="polite">
+        <p className={`save-state save-state-${saveState}`}>
           {saveState === "saving" ? "Saving on this device…" : null}
           {saveState === "saved" ? "Saved on this device." : null}
           {saveState === "failed" ? "Changes are not saved." : null}
@@ -356,7 +399,7 @@ export function TrackerApp({ service }: TrackerAppProps) {
       </header>
 
       {loadError === undefined ? null : (
-        <section className="error-banner" role="alert">
+        <section className="error-banner">
           <p>Local data could not be loaded. {loadError}</p>
           <button onClick={() => void loadWorkspace()} type="button">
             Retry loading
@@ -365,8 +408,12 @@ export function TrackerApp({ service }: TrackerAppProps) {
       )}
 
       {saveState !== "failed" ? null : (
-        <section className="error-banner" role="alert">
-          <p>This change was not saved. Your draft is still here.</p>
+        <section className="error-banner">
+          <p>
+            {retryOperation === undefined
+              ? "This change was not saved. Your draft is still here."
+              : "This action was not saved. Existing local data is unchanged."}
+          </p>
           {retryOperation === undefined ? null : (
             <button onClick={() => void retryLastOperation()} type="button">
               Retry last save
@@ -519,6 +566,9 @@ export function TrackerApp({ service }: TrackerAppProps) {
 function LoadingShell() {
   return (
     <div className="app-shell" aria-busy="true">
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
       <header className="app-header">
         <div>
           <p className="pixel-label">LOCAL NEW TAB</p>
@@ -570,34 +620,35 @@ function HomeView({ goals, onCreateGoal, onOpenGoal, onRenameGoal }: HomeViewPro
         </div>
       ) : (
         <div className="goal-grid">
-          {goals.map((goalTree, index) => (
-            <article
-              className={`goal-pin note-${noteColor(goalTree.goal.id)}`}
-              data-goal-id={goalTree.goal.id}
-              key={goalTree.goal.id}
-            >
-              <p className="pixel-label">GOAL {String(index + 1).padStart(2, "0")}</p>
-              <h2>{goalTree.goal.title}</h2>
-              <time dateTime={goalTree.goal.updatedAt}>
-                Updated {formatUpdatedAt(goalTree.goal.updatedAt)}
-              </time>
-              <div className="goal-actions">
-                <button
-                  aria-label={`Open goal ${goalTree.goal.title}`}
-                  className="goal-open"
-                  onClick={() => onOpenGoal(goalTree)}
-                  type="button"
-                >
-                  Open goal
-                </button>
-                <RenameEditor
-                  entityLabel={`goal ${goalTree.goal.title}`}
-                  onRename={(title) => onRenameGoal(goalTree.goal, title)}
-                  title={goalTree.goal.title}
-                />
-              </div>
-            </article>
-          ))}
+          {goals.map((goalTree, index) => {
+            const updatedLabel = formatUpdatedAt(goalTree.goal.updatedAt);
+            return (
+              <article
+                className={`goal-pin note-${noteColor(goalTree.goal.id)}`}
+                data-goal-id={goalTree.goal.id}
+                key={goalTree.goal.id}
+              >
+                <p className="pixel-label">GOAL {String(index + 1).padStart(2, "0")}</p>
+                <h2>{goalTree.goal.title}</h2>
+                <time dateTime={goalTree.goal.updatedAt}>Updated {updatedLabel}</time>
+                <div className="goal-actions">
+                  <button
+                    aria-label={`Open goal ${goalTree.goal.title}. Updated ${updatedLabel}`}
+                    className="goal-open"
+                    onClick={() => onOpenGoal(goalTree)}
+                    type="button"
+                  >
+                    Open goal
+                  </button>
+                  <RenameEditor
+                    entityLabel="goal"
+                    onRename={(title) => onRenameGoal(goalTree.goal, title)}
+                    title={goalTree.goal.title}
+                  />
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
     </section>
@@ -635,16 +686,154 @@ function GoalView({
   onSelectPhase,
   selectedPhase,
 }: GoalViewProps) {
+  const [draftEditorIds, setDraftEditorIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [boardDraftEditorIds, setBoardDraftEditorIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [pendingNavigation, setPendingNavigation] =
+    useState<PendingNavigation>();
+  const backButtonRef = useRef<HTMLButtonElement>(null);
+  const keepEditingRef = useRef<HTMLButtonElement>(null);
+  const navigationTriggerRef = useRef<HTMLButtonElement>(null);
+  const hasUnsavedRename = draftEditorIds.size > 0;
+  const hasUnsavedBoardRename = boardDraftEditorIds.size > 0;
+  const backWarningId = "discard-rename-warning";
+
+  const handleDraftStateChange = useCallback(
+    (editorId: string, hasUnsavedDraft: boolean) => {
+      setDraftEditorIds((currentIds) => {
+        const nextIds = new Set(currentIds);
+        if (hasUnsavedDraft) {
+          nextIds.add(editorId);
+        } else {
+          nextIds.delete(editorId);
+        }
+        if (nextIds.size === currentIds.size) {
+          return currentIds;
+        }
+        return nextIds;
+      });
+    },
+    [],
+  );
+
+  const handleBoardDraftStateChange = useCallback(
+    (editorId: string, hasUnsavedDraft: boolean) => {
+      handleDraftStateChange(editorId, hasUnsavedDraft);
+      setBoardDraftEditorIds((currentIds) => {
+        const nextIds = new Set(currentIds);
+        if (hasUnsavedDraft) {
+          nextIds.add(editorId);
+        } else {
+          nextIds.delete(editorId);
+        }
+        return nextIds.size === currentIds.size ? currentIds : nextIds;
+      });
+    },
+    [handleDraftStateChange],
+  );
+
+  useEffect(() => {
+    if (
+      (pendingNavigation?.type === "back" && !hasUnsavedRename) ||
+      (pendingNavigation?.type === "phase" && !hasUnsavedBoardRename)
+    ) {
+      setPendingNavigation(undefined);
+    }
+  }, [hasUnsavedBoardRename, hasUnsavedRename, pendingNavigation]);
+
+  function requestBackNavigation() {
+    if (!hasUnsavedRename) {
+      onBack();
+      return;
+    }
+
+    navigationTriggerRef.current = backButtonRef.current;
+    setPendingNavigation({ type: "back" });
+    requestAnimationFrame(() => keepEditingRef.current?.focus());
+  }
+
+  function requestPhaseNavigation(
+    phaseId: string,
+    trigger: HTMLButtonElement,
+  ) {
+    if (phaseId === selectedPhase?.phase.id) {
+      return;
+    }
+    if (!hasUnsavedBoardRename) {
+      onSelectPhase(phaseId);
+      return;
+    }
+
+    navigationTriggerRef.current = trigger;
+    setPendingNavigation({ type: "phase", phaseId });
+    requestAnimationFrame(() => keepEditingRef.current?.focus());
+  }
+
+  function keepEditing() {
+    setPendingNavigation(undefined);
+    requestAnimationFrame(() => navigationTriggerRef.current?.focus());
+  }
+
+  function discardRenameAndNavigate() {
+    const navigation = pendingNavigation;
+    setPendingNavigation(undefined);
+    if (navigation?.type === "back") {
+      onBack();
+    } else if (navigation?.type === "phase") {
+      onSelectPhase(navigation.phaseId);
+    }
+  }
+
   return (
     <section>
-      <button className="back-button" onClick={onBack} type="button">
+      <button
+        aria-describedby={
+          pendingNavigation?.type === "back" ? backWarningId : undefined
+        }
+        className="back-button"
+        onClick={requestBackNavigation}
+        ref={backButtonRef}
+        type="button"
+      >
         Back to goals
       </button>
+      {pendingNavigation === undefined ? null : (
+        <section className="navigation-warning" aria-labelledby={backWarningId}>
+          <div>
+            <h2 id={backWarningId}>Discard the rename draft?</h2>
+            <p>
+              A rename has unsaved changes. {pendingNavigation.type === "back"
+                ? "Going back"
+                : "Switching phases"} will discard the draft.
+            </p>
+          </div>
+          <div className="warning-actions">
+            <button onClick={keepEditing} ref={keepEditingRef} type="button">
+              Keep editing
+            </button>
+            <button
+              className="button-danger"
+              onClick={discardRenameAndNavigate}
+              type="button"
+            >
+              Discard draft and {pendingNavigation.type === "back" ? "go back" : "switch phase"}
+            </button>
+          </div>
+        </section>
+      )}
       <div className="goal-heading">
         <div>
           <p className="eyebrow">Current goal</p>
           <h1>{goalTree.goal.title}</h1>
-          <RenameEditor entityLabel="goal" onRename={onRenameGoal} title={goalTree.goal.title} />
+          <RenameEditor
+            entityLabel="goal"
+            onDraftStateChange={handleDraftStateChange}
+            onRename={onRenameGoal}
+            title={goalTree.goal.title}
+          />
         </div>
         <EntityForm
           buttonLabel="Add phase"
@@ -665,11 +854,19 @@ function GoalView({
           <nav aria-label="Goal phases" className="phase-rail">
             {goalTree.phases.map(({ phase }) => (
               <button
+                aria-describedby={
+                  pendingNavigation?.type === "phase" &&
+                  pendingNavigation.phaseId === phase.id
+                    ? backWarningId
+                    : undefined
+                }
                 aria-current={phase.id === selectedPhase?.phase.id ? "page" : undefined}
                 className={phase.id === selectedPhase?.phase.id ? "phase-active" : undefined}
                 data-phase-id={phase.id}
                 key={phase.id}
-                onClick={() => onSelectPhase(phase.id)}
+                onClick={(event) =>
+                  requestPhaseNavigation(phase.id, event.currentTarget)
+                }
                 type="button"
               >
                 {phase.title}
@@ -680,6 +877,7 @@ function GoalView({
             <Board
               onCreateTask={onCreateTask}
               onMoveTask={onMoveTask}
+              onDraftStateChange={handleBoardDraftStateChange}
               onRenamePhase={(title) => onRenamePhase(selectedPhase.phase, title)}
               onRenameTask={onRenameTask}
               onReorderTask={onReorderTask}
@@ -695,6 +893,7 @@ function GoalView({
 interface BoardProps {
   phaseTree: PhaseTree;
   onCreateTask: (title: string) => Promise<void>;
+  onDraftStateChange: (editorId: string, hasUnsavedDraft: boolean) => void;
   onMoveTask: (task: Task, status: TaskStatus) => Promise<void>;
   onRenamePhase: (title: string) => Promise<void>;
   onRenameTask: (task: Task, title: string) => Promise<void>;
@@ -707,6 +906,7 @@ interface BoardProps {
 
 function Board({
   onCreateTask,
+  onDraftStateChange,
   onMoveTask,
   onRenamePhase,
   onRenameTask,
@@ -721,6 +921,7 @@ function Board({
           <h2 id="phase-title">{phaseTree.phase.title}</h2>
           <RenameEditor
             entityLabel="phase"
+            onDraftStateChange={onDraftStateChange}
             onRename={onRenamePhase}
             title={phaseTree.phase.title}
           />
@@ -757,6 +958,7 @@ function Board({
                     <TaskCard
                       key={task.id}
                       nextTask={tasks[index + 1]}
+                      onDraftStateChange={onDraftStateChange}
                       onMoveTask={onMoveTask}
                       onRenameTask={onRenameTask}
                       onReorderTask={onReorderTask}
@@ -778,6 +980,7 @@ interface TaskCardProps {
   task: Task;
   previousTask: Task | undefined;
   nextTask: Task | undefined;
+  onDraftStateChange: (editorId: string, hasUnsavedDraft: boolean) => void;
   onMoveTask: (task: Task, status: TaskStatus) => Promise<void>;
   onRenameTask: (task: Task, title: string) => Promise<void>;
   onReorderTask: (
@@ -789,59 +992,153 @@ interface TaskCardProps {
 
 function TaskCard({
   nextTask,
+  onDraftStateChange,
   onMoveTask,
   onRenameTask,
   onReorderTask,
   previousTask,
   task,
 }: TaskCardProps) {
+  const actionReasonId = useId();
+  const [isMutating, setIsMutating] = useState(false);
+  const isMutatingRef = useRef(false);
+  const mutationReasonId = `${actionReasonId}-pending`;
+
+  async function runTaskMutation(action: () => Promise<void>) {
+    if (isMutatingRef.current) {
+      return;
+    }
+
+    isMutatingRef.current = true;
+    setIsMutating(true);
+    try {
+      await action();
+    } catch {
+      // The shared save banner and retry action report the mutation failure.
+    } finally {
+      isMutatingRef.current = false;
+      setIsMutating(false);
+    }
+  }
+
   return (
     <article className="task-card" data-task-id={task.id} tabIndex={-1}>
       <h4>{task.title}</h4>
       <RenameEditor
-        entityLabel={`task ${task.title}`}
+        entityLabel="task"
+        onDraftStateChange={onDraftStateChange}
         onRename={(title) => onRenameTask(task, title)}
         title={task.title}
       />
-      <div className="task-controls" aria-label={`Move ${task.title}`}>
-        {TASK_STATUSES.map((status) => (
-          <button
-            aria-label={`Move ${task.title} to ${STATUS_LABELS[status]}`}
-            disabled={task.status === status}
-            key={status}
-            onClick={() => void onMoveTask(task, status).catch(() => undefined)}
-            title={task.status === status ? `Already in ${STATUS_LABELS[status]}` : undefined}
-            type="button"
-          >
-            Move to {STATUS_LABELS[status]}
-          </button>
-        ))}
-        <button
-          aria-label={`Move ${task.title} before ${previousTask?.title ?? "the first task"}`}
-          disabled={previousTask === undefined}
-          onClick={() => {
-            if (previousTask !== undefined) {
-              void onReorderTask(task, previousTask, "before").catch(() => undefined);
-            }
-          }}
-          title={previousTask === undefined ? "Already first in this column" : undefined}
-          type="button"
-        >
-          Move before
-        </button>
-        <button
-          aria-label={`Move ${task.title} after ${nextTask?.title ?? "the last task"}`}
-          disabled={nextTask === undefined}
-          onClick={() => {
-            if (nextTask !== undefined) {
-              void onReorderTask(task, nextTask, "after").catch(() => undefined);
-            }
-          }}
-          title={nextTask === undefined ? "Already last in this column" : undefined}
-          type="button"
-        >
-          Move after
-        </button>
+      <div
+        aria-busy={isMutating}
+        aria-label={`Task actions for ${task.title}`}
+        className="task-controls"
+        role="group"
+      >
+        {isMutating ? (
+          <p className="task-action-state" id={mutationReasonId}>
+            Updating task…
+          </p>
+        ) : null}
+        <div className="task-control-section">
+          <p className="task-control-label">Status</p>
+          <div className="task-status-controls">
+            {TASK_STATUSES.map((status) => {
+              const isCurrentStatus = task.status === status;
+              const reasonId = `${actionReasonId}-${status}`;
+              return (
+                <div className="task-action" key={status}>
+                  <button
+                    aria-describedby={
+                      isMutating
+                        ? mutationReasonId
+                        : isCurrentStatus
+                          ? reasonId
+                          : undefined
+                    }
+                    aria-disabled={isMutating || isCurrentStatus || undefined}
+                    aria-label={`Move ${task.title} to ${STATUS_LABELS[status]}`}
+                    onClick={() => {
+                      if (!isMutatingRef.current && !isCurrentStatus) {
+                        void runTaskMutation(() => onMoveTask(task, status));
+                      }
+                    }}
+                    type="button"
+                  >
+                    {STATUS_LABELS[status]}
+                  </button>
+                  {isCurrentStatus ? (
+                    <span className="action-reason" id={reasonId}>
+                      Current status
+                    </span>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="task-control-section">
+          <p className="task-control-label">Order in column</p>
+          <div className="task-order-controls">
+            <div className="task-action">
+              <button
+                aria-describedby={
+                  isMutating
+                    ? mutationReasonId
+                    : previousTask === undefined
+                      ? `${actionReasonId}-before`
+                      : undefined
+                }
+                aria-disabled={isMutating || previousTask === undefined || undefined}
+                aria-label={`Move ${task.title} before ${previousTask?.title ?? "the first task"}`}
+                onClick={() => {
+                  if (!isMutatingRef.current && previousTask !== undefined) {
+                    void runTaskMutation(() =>
+                      onReorderTask(task, previousTask, "before"),
+                    );
+                  }
+                }}
+                type="button"
+              >
+                Move before
+              </button>
+              {previousTask === undefined ? (
+                <span className="action-reason" id={`${actionReasonId}-before`}>
+                  Already first
+                </span>
+              ) : null}
+            </div>
+            <div className="task-action">
+              <button
+                aria-describedby={
+                  isMutating
+                    ? mutationReasonId
+                    : nextTask === undefined
+                      ? `${actionReasonId}-after`
+                      : undefined
+                }
+                aria-disabled={isMutating || nextTask === undefined || undefined}
+                aria-label={`Move ${task.title} after ${nextTask?.title ?? "the last task"}`}
+                onClick={() => {
+                  if (!isMutatingRef.current && nextTask !== undefined) {
+                    void runTaskMutation(() =>
+                      onReorderTask(task, nextTask, "after"),
+                    );
+                  }
+                }}
+                type="button"
+              >
+                Move after
+              </button>
+              {nextTask === undefined ? (
+                <span className="action-reason" id={`${actionReasonId}-after`}>
+                  Already last
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </div>
       </div>
     </article>
   );
