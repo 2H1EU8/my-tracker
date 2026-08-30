@@ -2,7 +2,9 @@
 
 ## Status
 
-In progress. This item is ready for implementation, but the milestone is not complete until Dev supplies the required build and test evidence and QA independently passes the exit gate.
+Complete. The 2026-08-29 acceptance evidence passes all 22 criteria, including
+the real unpacked New Tab override, IndexedDB reopen, and DevTools Offline gate.
+M1 is ready to hand off to M2.
 
 ## User outcome
 
@@ -165,7 +167,8 @@ QA records scenarios using `docs/agents/QA_AGENT.md` for:
 6. Close/reopen New Tab persistence in a real unpacked Chrome profile.
 7. Production journey with no observed network request or undocumented permission.
 
-M1 remains `in progress` until QA links evidence for these scenarios and recommends pass.
+M1 is complete: the linked QA artifact records **22 Pass, 0 Fail, 0 Blocked** and
+recommends handoff to M2.
 
 ## Handoffs
 

@@ -29,9 +29,9 @@ The default task workflow is `Todo -> In Progress -> Done`. Notes and reminders 
 - `chrome.alarms` and `chrome.notifications` for reminders.
 - Versioned JSON validated by JSON Schema Draft 2020-12 for backup and AI-plan import.
 
-Milestone 1 implementation is in progress. The repository now includes the
-WXT/React New Tab shell, domain/application layers, and normalized IndexedDB
-persistence for goals, phases, and tasks.
+Milestone 1 is complete. The WXT/React New Tab shell, domain/application layers,
+normalized IndexedDB persistence, unpacked Chrome journey, reopen persistence,
+and offline boundary all pass. Milestone 2 is ready to start.
 
 ## Documentation map
 
@@ -56,13 +56,14 @@ The schemas are the source of truth for file shape. The TypeScript domain model 
 
 ## Current phase
 
-M1 implements and verifies this vertical slice:
+M1 completed and verified this vertical slice:
 
 ```text
 Open New Tab -> create Goal -> add Phase -> add Task -> move Task -> reopen -> data remains
 ```
 
-See `docs/ROADMAP.md` for acceptance gates before implementation expands.
+M2 is next: checklist items and the personal notes inbox. See
+`docs/ROADMAP.md` for its scope and acceptance gates.
 
 ## Local development
 

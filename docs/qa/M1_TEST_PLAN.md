@@ -2,15 +2,103 @@
 
 ## Status
 
-Automated and static execution complete on 2026-08-28. Manual unpacked-Chrome
-execution is blocked because no dedicated/disposable Chrome profile was
-available through the permitted browser-control surface. Release recommendation:
-`Blocked`.
+`Pass` as of 2026-08-29. Automated/static execution, the production-bundle
+preflight, and the final unpacked New Tab/offline Chrome acceptance run are
+complete. The prior environment-only blocker is resolved and M1 is ready to
+hand off to M2.
 
-This document defines independent QA coverage and records the execution evidence
-for the M1 durable goal vertical slice. Automated/static evidence is complete;
-manual unpacked-Chrome criteria remain explicitly blocked and must not be
-treated as passed.
+This document defines independent QA coverage and records the combined execution
+evidence for the M1 durable goal vertical slice. The 2026-08-28 blocked report is
+retained as historical evidence and is superseded by the owner-authorized final
+acceptance run below.
+
+## QA preflight addendum — 2026-08-29 (pre-final)
+
+This addendum records evidence gathered against the rebuilt production bundle
+after the UI/design handoff and the double-submit fix. It supplements the
+independent 2026-08-28 report; it does not redefine the unpacked-Chrome exit
+gate.
+
+- Source revision before the uncommitted fix: `d000fb2`.
+- Production directory: `.output/chrome-mv3`.
+- Manifest SHA-256:
+  `7cc10705cdbc6f95aa3151b6345cdbb0486df94bbb1284815cb383da66f8cb15`.
+- New Tab bundle SHA-256:
+  `7120f1a87380fee12be7ba546b63808b0332787da4f3dc2891f8c2ade835845c`.
+- Generated CSS SHA-256:
+  `baa3bfd379109a3a65626958c2eda1da199fdfa757840cc9f61c1b90aed0e94d`.
+
+Observed in an isolated in-app browser context against the exact production
+bundle served from loopback:
+
+- Delayed loading rendered before the real empty state; the one-shot load
+  failure rendered Retry and recovered the unchanged dataset.
+- Goal, phase, and task create/rename paths, inline empty/whitespace/241-character
+  validation, literal markup rendering, move/reorder, draft guards, focus return,
+  announcements, IndexedDB reopen, and create/rename/move retry paths worked.
+- A 640 CSS-pixel viewport had no horizontal overflow and retained a minimum
+  44-pixel button height. Reduced-motion emulation produced zero-duration
+  transitions and no running animation.
+- CDP observed only the loopback HTML, JavaScript, and CSS requests; no external
+  request occurred.
+- A real double-click created one Goal. A defect where the second click could
+  leave a false empty-title error was fixed and retested with one record and no
+  inline error.
+
+Observed in an agent-created localhost tab in connected Chrome, without reading
+or claiming any existing user tab:
+
+- Enter created Goal -> Phase -> Task without pointer activation.
+- Enter moved the task to In Progress; focus returned to the moved task article
+  and the polite live region announced its title, destination, and position.
+- A second new Chrome tab in the same profile reopened the persisted hierarchy
+  and In Progress status.
+
+These results removed the known code/UI blockers and substantially de-risked
+Q04–Q13. At this preflight point they were not substitutes for loading
+`.output/chrome-mv3` unpacked, proving the New Tab override, and repeating the
+journey with DevTools Offline. The final run below subsequently supplied that
+environment-specific evidence.
+
+## Final unpacked Chrome acceptance — 2026-08-29
+
+The owner explicitly authorized using the personal Chrome profile to resolve the
+last environment blocker. This was a one-time exception to the preferred
+disposable-profile precondition; no unrelated tab, extension, browser data, or
+extension data was modified or deleted.
+
+- Production directory loaded unpacked: `.output/chrome-mv3`.
+- Manifest SHA-256:
+  `7cc10705cdbc6f95aa3151b6345cdbb0486df94bbb1284815cb383da66f8cb15`.
+- New Tab bundle SHA-256:
+  `7120f1a87380fee12be7ba546b63808b0332787da4f3dc2891f8c2ade835845c`.
+- Generated CSS SHA-256:
+  `baa3bfd379109a3a65626958c2eda1da199fdfa757840cc9f61c1b90aed0e94d`.
+
+Observed against the actual unpacked New Tab override:
+
+- Chrome opened My Tracker from the local extension page and exposed the true
+  empty Goal state.
+- Enter created `M1 Chrome Acceptance` -> `Runtime Gate` ->
+  `Verify unpacked Chrome gate` without pointer activation of the forms.
+- Named task controls moved the task Todo -> In Progress -> Done, with the live
+  status text reporting each destination and position.
+- A second New Tab restored the same Goal, Phase, Task, and Done status from the
+  real profile IndexedDB.
+- With DevTools Network throttling set to Offline, the task moved Done -> Todo
+  and the page reloaded successfully with the updated persisted state.
+- The preserved offline reload log contained exactly three successful local
+  resources: `newtab.html`, `newtab-gATWsLrj.js`, and
+  `newtab-Dx44ytRf.css`, all using `chrome-extension://`. No HTTP(S), WebSocket,
+  or external request appeared.
+- Network throttling was restored to No throttling after the run.
+- The owner completed the documented Developer mode -> Load unpacked -> New Tab
+  sequence from the exact runbook path, closing the Q14 fresh-reader blocker.
+
+Result: `pass`. This execution closes Q04, Q05, Q07–Q10, Q13, and Q14. Q06,
+Q11, and Q12 use the earlier deterministic production-bundle preflight evidence;
+Q01–Q03 use the automated/static evidence below. Together they cover all 22
+acceptance criteria without a remaining release blocker.
 
 ## Objective
 
@@ -42,9 +130,10 @@ Supporting contracts:
 - No database reset, extension-data deletion, or destructive cleanup is performed
   without fresh target-specific approval. Automated integration tests must use
   unique disposable database names/factories.
-- Manual Chrome execution uses a dedicated test profile. Launching or controlling
-  Chrome is a separate execution action and requires the approval applicable at
-  that time.
+- Manual Chrome execution normally uses a dedicated test profile. The final
+  environment blocker used the personal profile only after explicit owner
+  approval, as recorded above. Launching or controlling Chrome remains a
+  separate execution action requiring the approval applicable at that time.
 
 Final evidence uses the QA role format:
 
@@ -416,7 +505,7 @@ Steps:
 Expected: a fresh reader can build, identify the directory, install, open New
 Tab, and exercise close/reopen without hidden knowledge.
 
-## QA execution report — 2026-08-28
+## QA execution report — 2026-08-28 (superseded)
 
 ### Build under test
 
@@ -681,9 +770,10 @@ Risk/notes: Blocks final AC 22 evidence.
 
 Summary: 3 Pass, 0 Fail, 19 Blocked.
 
-### Release recommendation
+### Release recommendation at that time
 
-`Blocked` — do not declare M1 passed.
+`Blocked` at the time — this recommendation is superseded by the 2026-08-29
+acceptance decision below.
 
 All automated, transaction, type, build, manifest, static local-only, and
 runbook checks completed without a defect. However, the required unpacked Chrome
@@ -693,10 +783,11 @@ operation, focus/live announcements, real IndexedDB reopen, offline Network
 evidence, and fresh-reader installation.
 
 This is an evidence/environment blocker, not a demonstrated product failure.
-M1 must remain `in progress` until Q04–Q14 are executed against this exact build
-or a newly rebuilt, re-identified production artifact.
+At that time, M1 was required to remain `in progress` until Q04–Q14 were
+executed against this exact build or a newly rebuilt, re-identified production
+artifact.
 
-## Final release decision
+## Historical release decision rule
 
 QA may recommend `Pass` only when:
 
@@ -726,5 +817,44 @@ The planning gaps were re-inspected after the stable Dev handoff.
 | G7 | `docs/M1_RUNBOOK.md` names the exact production path and reopen steps. | Follow procedure in disposable Chrome. | Documentation gap resolved; manual blocked |
 | G8 | All QA URLs, reset behavior, scope, and safety are documented. | Execute them in disposable Chrome. | Documentation gap resolved; manual blocked |
 
-Only this QA artifact was modified during execution. Source and other project
-documentation were inspected read-only.
+During the 2026-08-28 execution, only this QA artifact was modified. Source and
+other project documentation were inspected read-only.
+
+## Superseding acceptance decision — 2026-08-29
+
+The exact rebuilt production artifact, the deterministic production-bundle
+preflight, the automated suites, and the owner-authorized unpacked Chrome run
+form the final M1 evidence set.
+
+| AC | Result | Final evidence |
+| --- | --- | --- |
+| 1 | Pass | Unpacked build replaced New Tab with My Tracker |
+| 2 | Pass | Offline journey and reload succeeded with only local extension resources |
+| 3 | Pass | One-shot load failure showed Retry and recovered the unchanged dataset |
+| 4 | Pass | Delayed-load seam showed loading before the true state |
+| 5 | Pass | Actual unpacked empty state exposed keyboard-operable Goal capture |
+| 6 | Pass | Actual goal/phase empty states and all three columns were observed |
+| 7 | Pass | Enter created Goal -> Phase -> Task in the unpacked extension |
+| 8 | Pass | Rename preflight plus reopen persistence passed |
+| 9 | Pass | Inline empty/whitespace/241-character validation wrote no record |
+| 10 | Pass | Literal markup rendered as text without execution |
+| 11 | Pass | Parent mismatch rejected with unchanged task collection |
+| 12 | Pass | Actual board exposed exactly Todo, In Progress, and Done |
+| 13 | Pass | Named pointer controls passed unpacked; keyboard controls passed connected Chrome |
+| 14 | Pass | Append/reorder automation, production UI controls, and reopen evidence passed |
+| 15 | Pass | Focus return and live status/position announcements were observed |
+| 16 | Pass | Done transition and reopened persisted status passed with unit timestamp rules |
+| 17 | Pass | A second real New Tab restored hierarchy and status from IndexedDB |
+| 18 | Pass | Create/rename/move failure seams preserved state and retried successfully |
+| 19 | Pass | Post-first-write failure aborted and reconnected to the pre-move snapshot |
+| 20 | Pass | Initial real store creation and subsequent New Tab reopen succeeded |
+| 21 | Pass | Generated manifest retained empty permissions and host permissions |
+| 22 | Pass | Owner followed the documented unpacked path and reopen sequence |
+
+Summary: **22 Pass, 0 Fail, 0 Blocked.**
+
+### Final release recommendation
+
+`Pass` — M1 is complete and ready to hand off to M2. No unresolved data-loss,
+partial-write, unsafe-rendering, blank-page, keyboard-blocking, local-only, or
+permission-expansion defect remains in the accepted M1 scope.

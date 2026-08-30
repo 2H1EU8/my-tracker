@@ -22,7 +22,8 @@ Exit gate:
 
 ## M1 — Durable goal vertical slice
 
-Status: in progress. Design specification and implementation are active; M1 remains incomplete until the independent QA exit gate passes.
+Status: complete. All 22 acceptance criteria pass, including the unpacked
+New Tab, real IndexedDB reopen, and offline no-external-request gate.
 
 Ready work item: [`docs/work-items/M1_DURABLE_GOAL_SLICE.md`](work-items/M1_DURABLE_GOAL_SLICE.md)
 
@@ -58,6 +59,8 @@ Exit gate:
 - QA records independent evidence for empty, invalid-input, save-failure, and close/reopen persistence states and recommends pass.
 
 ## M2 — Checklist and personal inbox
+
+Status: ready to start after the completed M1 handoff.
 
 Outcome:
 

@@ -115,7 +115,16 @@ function EntityForm({
           readOnly={isSaving}
           value={draft}
         />
-        <button className="button-primary" disabled={isSaving} type="submit">
+        <button
+          className="button-primary"
+          disabled={isSaving}
+          onClick={(event) => {
+            if (event.detail > 1) {
+              event.preventDefault();
+            }
+          }}
+          type="submit"
+        >
           {isSaving ? `${buttonLabel}…` : error === undefined ? buttonLabel : `Retry ${buttonLabel.toLowerCase()}`}
         </button>
       </div>

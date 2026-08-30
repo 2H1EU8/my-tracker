@@ -2,8 +2,8 @@
 
 ## Status
 
-Baseline approved for MVP delivery. Milestone 1 implementation is in progress
-and remains open until the independent unpacked-Chrome QA exit gate passes.
+Baseline approved for MVP delivery. Milestone 1 is complete with 22 passing
+acceptance criteria; Milestone 2 is ready to start.
 
 ## Actors
 
