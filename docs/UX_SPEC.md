@@ -6,9 +6,10 @@ My Tracker turns New Tab into a quiet personal work surface. It should feel
 immediate, private, and stable: dark flat chrome, readable text, clear project
 structure, and a restrained pixel-pin motif that makes goals recognizable.
 
-Minimalism here means fewer competing decisions, not hidden behavior. Current
-context, timestamps, task status, save state, errors, and destructive
-consequences remain visible when relevant.
+Minimalism here means fewer persistent decisions, progressive disclosure, and
+one clear action per context—not hidden consequences. Current context,
+timestamps, task status, save state, errors, and destructive consequences remain
+visible when relevant. Resting implementation labels and expanded forms do not.
 
 The canonical visual tokens and component anatomy live in [`DESIGN.md`](../DESIGN.md).
 This document defines flows, interaction behavior, responsive rules, and state
@@ -50,9 +51,9 @@ Open New Tab
   -> see the same hierarchy, status, and order
 ```
 
-M1 includes title-only create and rename for goals, phases, and tasks; three
-fixed status columns; pointer- and keyboard-operable named task actions; local
-loading/save/error states; and persistence after reopen.
+M1 includes modal title-only create and rename for goals, phases, and tasks;
+three fixed status columns; a compact pointer- and keyboard-operable task-action
+modal; local loading/save/error states; and persistence after reopen.
 
 M1 intentionally defers notes, reminders, checklist, deadlines, task detail,
 archive/delete, goal/phase reordering UI, import/export/restore, drag-and-drop,
@@ -74,20 +75,22 @@ represented with fake data.
 ### Page-level order
 
 1. Skip link.
-2. Compact product/context header.
-3. Primary create or navigation action for the current screen.
+2. Compact `My Tracker` plus search-placeholder header.
+3. Section heading plus one primary icon trigger for the current screen.
 4. Current data surface.
 5. One polite live region shared by routine result messages.
 
-The shell may display `Saving on this device`, `Saved on this device`, or
-`Changes are not saved`. It must never say `Synced` or imply a server.
+Resting labels such as `Local only`, `Local New Tab`, and `Stored only in this
+Chrome profile` are omitted. The shell may briefly display `Saving`, `Saved`, or
+`Changes are not saved` while relevant. It must never say `Synced` or imply a
+server.
 
 ## Home
 
 ### M1 empty state
 
-- `Create goal` is the first task-specific focus target.
-- A visible label accompanies the title input.
+- The Plus icon beside `Goals` is the first task-specific focus target.
+- It opens a modal with a visible title-input label.
 - Enter submits; whitespace-only or over-240-character input shows an inline
   error and performs no write.
 - The empty state says what to do next and does not use a decorative illustration
@@ -97,12 +100,14 @@ The shell may display `Saving on this device`, `Saved on this device`, or
 
 - Goals appear in persisted order as original code-native pixel-pin notes.
 - Each card shows the goal title and last updated time.
-- The whole-card open action has an accessible name containing the title.
+- Double-click opens a card. Enter or Space on the focused card is the keyboard
+  equivalent, and the accessible name contains the title and instruction.
 - Note color is decorative and stable; it does not encode goal status.
 - Opening a goal preserves/restores Home scroll position when the user returns
   during the same page session.
-- Rename exposes saving, saved, failed, retry, and cancel behavior without
-  discarding the draft.
+- PencilSimple appears on card hover/focus and opens the rename modal. Rename
+  exposes saving, saved, failed, retry, and cancel behavior without discarding
+  the draft.
 
 ### Later Home additions
 
@@ -119,9 +124,10 @@ The shell may display `Saving on this device`, `Saved on this device`, or
 
 ### Context header
 
-- `Back to goals` appears before the editable goal title.
+- An ArrowLeft icon appears before the goal title with the accessible name and
+  tooltip `Back to goals`.
 - The goal title is the strongest heading; application branding stays secondary.
-- Rename can be started without replacing the whole page with an editing mode.
+- PencilSimple opens rename in a modal without replacing the page.
 - Enter confirms, Escape cancels, and failed persistence restores neither a false
   `Saved` state nor the old value over the user's draft.
 
@@ -132,7 +138,8 @@ The shell may display `Saving on this device`, `Saved on this device`, or
   the selected-state cue.
 - The rail scrolls horizontally instead of wrapping into multiple ambiguous rows.
 - Selecting a phase changes the board context without changing any task status.
-- When no phase exists, show `Add phase` and do not show a misleading board.
+- When no phase exists, the goal-heading Plus opens create phase and the page
+  does not show a misleading board.
 - M1 supports add, select, and rename. Phase reordering and deletion are deferred.
 
 ### Kanban board
@@ -142,12 +149,14 @@ The shell may display `Saving on this device`, `Saved on this device`, or
 - Empty columns remain valid named move destinations and explain their empty
   state.
 - A task created in the active phase enters Todo at the end of the column.
-- A task card shows its title and explicit move/reorder actions in M1. Do not show
+- A task card rests as its title plus hover/focus PencilSimple and DotsThree
+  triggers. DotsThree opens explicit status/reorder actions. Do not show
   placeholder deadline, priority, checklist, or description content.
 
 ### Deterministic task movement
 
-The M1 baseline is explicit named controls, operable by pointer and keyboard:
+The M1 baseline is explicit named controls inside the task-action modal,
+operable by pointer and keyboard:
 
 - `Move to Todo`, `Move to In Progress`, and `Move to Done` change status and
   append the task to the destination column.
@@ -186,9 +195,9 @@ must use the same append/reorder rules and retain the named controls.
 
 | Context | Message | Primary action |
 | --- | --- | --- |
-| No goals | `No goals yet. Create one to start planning.` | `Create goal` |
-| Goal without phases | `Add a phase to organize this goal.` | `Add phase` |
-| Phase without tasks | `No tasks in this phase yet.` | `Add task` |
+| No goals | `No goals yet.` | Goals-heading Plus icon opens create modal |
+| Goal without phases | `Add a phase to organize this goal.` | Goal-heading Plus icon opens create modal |
+| Phase without tasks | `No tasks in this phase yet.` | Phase-heading Plus icon opens create modal |
 | Empty status column | `No tasks in this status.` | Contextual move/create hint |
 
 ### Saving and saved
@@ -274,6 +283,18 @@ current local dataset.
 - Goal/task titles remain real text, never pixel-art images.
 - Original pixel accents use CSS/SVG squares and grid-aligned marks only.
 
+### Iconography and progressive disclosure
+
+- Every application icon comes from Phosphor Icons via the locally bundled
+  `@phosphor-icons/react` package; core use never fetches icon assets.
+- Plus creates, PencilSimple renames, DotsThree opens task actions, ArrowLeft
+  navigates back, and MagnifyingGlass identifies the deferred search field.
+- Icon-only triggers retain `44px` hit areas, visible focus, accessible names,
+  and hover/focus tooltips. Card actions appear on hover/focus and remain visible
+  without hover.
+- Create, rename, and task actions use modal dialogs. Dialog decisions retain
+  visible text; errors, destructive consequences, and retry are never icon-only.
+
 ### Geometry and depth
 
 - 8 px spacing rhythm with selected 4 px internal adjustments.
@@ -299,7 +320,8 @@ current local dataset.
   headings remain visible and each column is at least wide enough for readable
   task controls.
 - The phase rail may scroll independently but must keep the current phase visible.
-- At narrow widths, title/actions wrap before hit targets shrink below 44 px.
+- At narrow widths, titles wrap, dialogs remain inside the viewport, and icon
+  hit targets never shrink below 44 px.
 - Exact production breakpoints are confirmed through long-title, large-count,
   200% zoom, and narrow-content stress tests rather than device presets.
 
@@ -309,12 +331,14 @@ implementation hypotheses, not permanent device categories.
 ## Keyboard and focus behavior
 
 - Provide a skip link to main content.
-- Home M1 focus order starts with Create goal. When quick capture ships, it
+- Home M1 focus order starts with the Create goal icon. When quick capture ships, it
   becomes the first useful field.
-- Goal detail order is Back, goal context/edit, phase rail, board columns, then
-  card actions in visual order.
+- Goal detail order is Back icon, goal title/edit, create phase, phase rail,
+  board context/create task, then card edit/actions in visual order.
 - Enter submits a valid single-line create/rename form; Escape cancels and
   restores focus to the trigger.
+- Native modal behavior traps focus while open. Closing returns focus to the
+  trigger unless a successful creation focuses the created entity.
 - A successful create focuses the created item or its title control.
 - A moved task keeps focus after DOM relocation.
 - Dialogs in later milestones trap focus and return it to their trigger.
@@ -338,12 +362,15 @@ implementation hypotheses, not permanent device categories.
 Design review for M1 checks:
 
 1. Loading never flashes a false empty dataset.
-2. Empty Goal, Phase, and Task states provide the correct next action.
-3. Goal/Phase/Task create and rename cover invalid, saving, saved, and failed
-   states without draft loss.
+2. Empty Goal, Phase, and Task states expose one correct Plus action.
+3. Goal/Phase/Task modal create and rename cover invalid, saving, saved, and
+   failed states without draft loss or background interaction.
 4. Board exposes exactly Todo, In Progress, and Done.
-5. Pointer and keyboard users can invoke the same named status/reorder actions.
+5. Pointer and keyboard users can invoke the same named status/reorder actions
+   from the compact task-action modal.
 6. Cross-status movement appends; before/after changes order only within a column.
 7. Focus and announcements survive task relocation.
 8. Reopen presents persisted hierarchy, status, and order without network use.
-9. The shell follows the calm flat direction without claiming final M6 polish.
+9. The shell follows the enforced minimal direction: My Tracker + deferred
+   search, no resting local-implementation labels, Phosphor icons only, and no
+   persistent create/rename/task-action forms.

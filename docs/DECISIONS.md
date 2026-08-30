@@ -104,6 +104,28 @@ This file records approved product and architecture decisions. Update it when a 
 - Trade-off: Native request and transaction lifetimes require more adapter code and careful tests than a promise wrapper.
 - Revisit trigger: Re-evaluate a thin maintained wrapper before M4/M5 if import/restore transactions, migrations, or measured maintenance cost make the native adapter materially harder to keep correct.
 
+## D-014 — Minimal interaction language and Phosphor Icons
+
+- Date: 2026-08-30
+- Status: accepted
+- Decision: Enforce minimalism as an interaction constraint. Resting screens use
+  one primary icon trigger per context; create, rename, and secondary task
+  actions open focused modal dialogs. All application icons come from the
+  locally bundled `@phosphor-icons/react` package.
+- Rationale: The completed M1 logic was sound, but persistent forms, repeated
+  buttons, and implementation labels made the New Tab surface visually noisy
+  and slow to scan. A single maintained icon family plus progressive disclosure
+  gives Design and Dev one enforceable language without hiding validation or
+  consequences.
+- Dependency rationale: Platform glyphs, emoji, and hand-authored SVGs do not
+  provide the approved consistent family or maintainable React API. The package
+  is tree-shaken into the extension build, requires no runtime network request,
+  and adds no Chrome permission.
+- Consequence: Plus, PencilSimple, DotsThree, ArrowLeft, MagnifyingGlass, and the
+  documented task-status icons are canonical. Icon-only triggers require
+  accessible names, tooltips, visible focus, and 44 px hit targets. Modal
+  commit/cancel/retry and destructive actions retain visible text.
+
 ## Deferred decisions
 
 | Topic | Decide by | Default until decided |

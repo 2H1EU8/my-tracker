@@ -2,15 +2,60 @@
 
 ## Status
 
-`Pass` as of 2026-08-29. Automated/static execution, the production-bundle
-preflight, and the final unpacked New Tab/offline Chrome acceptance run are
-complete. The prior environment-only blocker is resolved and M1 is ready to
-hand off to M2.
+`Pass` as of 2026-08-30. Automated/static execution, the production-bundle
+preflight, the final unpacked New Tab/offline Chrome acceptance run, and the
+minimal-interface regression below are complete. The prior environment-only
+blocker is resolved and M1 is ready to hand off to M2.
 
 This document defines independent QA coverage and records the combined execution
 evidence for the M1 durable goal vertical slice. The 2026-08-28 blocked report is
 retained as historical evidence and is superseded by the owner-authorized final
 acceptance run below.
+
+## Minimal-interface regression — 2026-08-30
+
+This regression covers the owner-requested M1 UI refinement without changing
+the accepted hierarchy, storage, ordering, or status behavior.
+
+- Production directory: `.output/chrome-mv3`.
+- Manifest SHA-256:
+  `7cc10705cdbc6f95aa3151b6345cdbb0486df94bbb1284815cb383da66f8cb15`.
+- New Tab bundle SHA-256:
+  `1d5a241a067f2e5ef88f45d2299ab27dcdf2c05aaae0a8eb164fbddb43344921`.
+- Generated CSS SHA-256:
+  `65416a2bafcc78ebb2139f25704a4aeb4d17216b4bf3a7301e255449c125a7c6`.
+
+Automated results against this exact workspace:
+
+- Type-check passed.
+- Unit suite passed: 11/11.
+- IndexedDB integration suite passed: 5/5.
+- Full suite passed: 16/16.
+- Production build passed; the generated manifest still has empty
+  `permissions` and `host_permissions`.
+- `git diff --check` passed.
+
+Observed in connected Chrome against the exact production bundle served from
+loopback, using an isolated loopback origin rather than the installed
+extension's IndexedDB:
+
+- Desktop and 390-by-844 responsive layouts show only `My Tracker`, the
+  deferred Search field, current section context, and essential icon triggers.
+  The removed implementation labels and expanded forms do not appear.
+- Plus opens labeled Goal, Phase, and Task dialogs. Empty submission stays in
+  the dialog with `Title must not be empty.` and performs no write.
+- A single click on a Goal does not open it; double-click opens it. Enter on the
+  same focusable surface also opens it.
+- PencilSimple opens rename dialogs. Escape closes a rename dialog and returns
+  focus to the originating icon trigger.
+- DotsThree opens the Task actions dialog with explicit status and order names,
+  disabled-state reasons, and Phosphor status/order icons.
+- No browser console warning or error was recorded during the journey.
+
+The already-installed unpacked extension must be reloaded once after the new
+bundle hashes are written so Chrome drops the cached manifest and old asset
+names. That refresh is an installation handoff, not a product-code blocker; the
+production files themselves passed the UI regression above.
 
 ## QA preflight addendum — 2026-08-29 (pre-final)
 

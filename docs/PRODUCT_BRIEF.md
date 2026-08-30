@@ -44,7 +44,7 @@ The useful UI appears immediately from local state. Background work must not blo
 
 ### Simple outside, structured inside
 
-The home view shows compact notes and goal cards. A goal can contain enough hierarchy for a large software project without exposing enterprise project-management complexity.
+The home view shows compact notes and goal cards. A goal can contain enough hierarchy for a large software project without exposing enterprise project-management complexity. Resting screens reveal only the current context and its essential action; create, rename, and secondary actions use progressive disclosure through a canonical Phosphor icon and focused modal.
 
 ### AI-compatible, not AI-dependent
 

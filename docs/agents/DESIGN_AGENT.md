@@ -10,6 +10,10 @@ and `docs/UX_SPEC.md`; chat-only decisions are not a handoff.
 
 ## Visual direction
 
+- Minimalism is mandatory: remove resting implementation labels, expanded
+  create/rename forms, and repeated controls that do not serve the next decision.
+- All application icons come from Phosphor Icons. Specify the canonical icon,
+  accessible name, tooltip, and hover/focus/no-hover behavior for each trigger.
 - Dark, low-glare canvas designed for focus.
 - Original code-native Goal pixel pins: flat muted note cards with a small square
   pin motif, never copied imagery or simulated paper.
@@ -24,6 +28,9 @@ and `docs/UX_SPEC.md`; chat-only decisions are not a handoff.
 
 ## Interaction requirements
 
+- Prefer one icon trigger plus a focused modal for create, rename, and secondary
+  card actions. Keep labels, validation, Save/Cancel, errors, and consequences
+  visible inside the modal.
 - Quick capture must be reachable immediately on New Tab and submit by keyboard.
 - Goal cards expose title and last update in collapsed state.
 - Goal detail exposes phase navigation, the three-status task board, and checklist progress.
@@ -49,9 +56,9 @@ and `docs/UX_SPEC.md`; chat-only decisions are not a handoff.
 
 ## Guardrails
 
-- Do not copy an external design, reference image, logo, font, icon set, or
-  distinctive component. Retain only abstract lessons such as hierarchy and
-  restrained chrome.
+- Do not copy an external design, reference image, logo, font, or distinctive
+  component. Phosphor Icons is the approved exception and the only application
+  icon family; retain only abstract lessons from every other reference.
 - Do not make color the only carrier of status.
 - Do not hide timestamps, task state, or destructive consequences for visual
   cleanliness.

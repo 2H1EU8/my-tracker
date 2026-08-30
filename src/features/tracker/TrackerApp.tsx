@@ -1,6 +1,20 @@
 import {
+  ArrowLeftIcon,
+  CaretDownIcon,
+  CaretUpIcon,
+  CheckCircleIcon,
+  CircleIcon,
+  DotsThreeIcon,
+  MagnifyingGlassIcon,
+  PencilSimpleIcon,
+  PlayCircleIcon,
+  PlusIcon,
+  XIcon,
+} from "@phosphor-icons/react";
+import {
   type FormEvent,
   type KeyboardEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useId,
@@ -28,29 +42,23 @@ interface TrackerAppProps {
 
 type SaveState = "idle" | "saving" | "saved" | "failed";
 
-type PendingNavigation =
-  | { type: "back" }
-  | { type: "phase"; phaseId: string };
-
 interface RetryOperation {
   action: () => Promise<unknown>;
   successMessage: string | ((result: unknown) => string);
   getFocusSelector: (() => string | undefined) | undefined;
 }
 
-interface EntityFormProps {
-  buttonLabel: string;
+interface EntityDialogProps {
+  dialogTitle: string;
+  initialValue?: string;
   inputId: string;
   label: string;
   onSubmit: (title: string) => Promise<void>;
   placeholder: string;
-}
-
-interface RenameEditorProps {
-  entityLabel: string;
-  title: string;
-  onDraftStateChange?: (editorId: string, hasUnsavedDraft: boolean) => void;
-  onRename: (title: string) => Promise<void>;
+  submitLabel: string;
+  triggerClassName?: string;
+  triggerIcon: ReactNode;
+  triggerLabel: string;
 }
 
 function getErrorMessage(error: unknown): string {
@@ -60,18 +68,50 @@ function getErrorMessage(error: unknown): string {
   return "This change was not saved. Your draft is still here.";
 }
 
-function EntityForm({
-  buttonLabel,
+function EntityDialog({
+  dialogTitle,
+  initialValue = "",
   inputId,
   label,
   onSubmit,
   placeholder,
-}: EntityFormProps) {
-  const [draft, setDraft] = useState("");
+  submitLabel,
+  triggerClassName,
+  triggerIcon,
+  triggerLabel,
+}: EntityDialogProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [draft, setDraft] = useState(initialValue);
   const [error, setError] = useState<string>();
   const [isSaving, setIsSaving] = useState(false);
   const isSavingRef = useRef(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const errorId = `${inputId}-error`;
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    const dialog = dialogRef.current;
+    if (dialog !== null && !dialog.open) {
+      dialog.showModal();
+      requestAnimationFrame(() => inputRef.current?.focus());
+    }
+  }, [isOpen]);
+
+  function open() {
+    setDraft(initialValue);
+    setError(undefined);
+    setIsOpen(true);
+  }
+
+  function close() {
+    if (!isSavingRef.current) {
+      dialogRef.current?.close();
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -85,7 +125,7 @@ function EntityForm({
 
     try {
       await onSubmit(draft);
-      setDraft("");
+      dialogRef.current?.close();
     } catch (submissionError) {
       setError(getErrorMessage(submissionError));
     } finally {
@@ -95,155 +135,85 @@ function EntityForm({
   }
 
   return (
-    <form aria-busy={isSaving} className="entity-form" onSubmit={submit}>
-      <label htmlFor={inputId}>{label}</label>
-      <div className="form-row">
-        <input
-          id={inputId}
-          aria-describedby={error === undefined ? undefined : errorId}
-          aria-invalid={error === undefined ? undefined : true}
-          autoComplete="off"
-          maxLength={241}
-          onChange={(event) => setDraft(event.currentTarget.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Escape" && !isSavingRef.current) {
-              setDraft("");
-              setError(undefined);
-            }
-          }}
-          placeholder={placeholder}
-          readOnly={isSaving}
-          value={draft}
-        />
-        <button
-          className="button-primary"
-          disabled={isSaving}
-          onClick={(event) => {
-            if (event.detail > 1) {
+    <>
+      <button
+        aria-label={triggerLabel}
+        className={`icon-button${triggerClassName === undefined ? "" : ` ${triggerClassName}`}`}
+        data-tooltip={triggerLabel}
+        onClick={open}
+        ref={triggerRef}
+        title={triggerLabel}
+        type="button"
+      >
+        {triggerIcon}
+      </button>
+      {isOpen ? (
+        <dialog
+          aria-labelledby={`${inputId}-dialog-title`}
+          className="entity-dialog"
+          onCancel={(event) => {
+            if (isSavingRef.current) {
               event.preventDefault();
             }
           }}
-          type="submit"
+          onClose={() => {
+            setIsOpen(false);
+            setDraft(initialValue);
+            setError(undefined);
+            requestAnimationFrame(() => triggerRef.current?.focus());
+          }}
+          ref={dialogRef}
         >
-          {isSaving ? `${buttonLabel}…` : error === undefined ? buttonLabel : `Retry ${buttonLabel.toLowerCase()}`}
-        </button>
-      </div>
-      {error === undefined ? null : (
-        <p className="field-error" id={errorId}>
-          {error}
-        </p>
-      )}
-    </form>
-  );
-}
-
-function RenameEditor({
-  entityLabel,
-  onDraftStateChange,
-  onRename,
-  title,
-}: RenameEditorProps) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [draft, setDraft] = useState(title);
-  const [error, setError] = useState<string>();
-  const [isSaving, setIsSaving] = useState(false);
-  const isSavingRef = useRef(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const editorId = useId();
-  const errorId = `${editorId}-error`;
-  const hasUnsavedDraft =
-    isEditing && (draft !== title || error !== undefined || isSaving);
-
-  useEffect(() => {
-    onDraftStateChange?.(editorId, hasUnsavedDraft);
-  }, [editorId, hasUnsavedDraft, onDraftStateChange]);
-
-  useEffect(
-    () => () => onDraftStateChange?.(editorId, false),
-    [editorId, onDraftStateChange],
-  );
-
-  function cancel() {
-    setDraft(title);
-    setError(undefined);
-    setIsEditing(false);
-    requestAnimationFrame(() => triggerRef.current?.focus());
-  }
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (isSavingRef.current) {
-      return;
-    }
-
-    isSavingRef.current = true;
-    setIsSaving(true);
-    setError(undefined);
-
-    try {
-      await onRename(draft);
-      setIsEditing(false);
-      requestAnimationFrame(() => triggerRef.current?.focus());
-    } catch (submissionError) {
-      setError(getErrorMessage(submissionError));
-    } finally {
-      isSavingRef.current = false;
-      setIsSaving(false);
-    }
-  }
-
-  if (!isEditing) {
-    return (
-      <button
-        aria-label={`Rename ${entityLabel} ${title}`}
-        className="button-text"
-        onClick={() => {
-          setDraft(title);
-          setIsEditing(true);
-          requestAnimationFrame(() => inputRef.current?.focus());
-        }}
-        ref={triggerRef}
-        type="button"
-      >
-        Rename {entityLabel}
-      </button>
-    );
-  }
-
-  return (
-    <form aria-busy={isSaving} className="rename-form" onSubmit={submit}>
-      <label className="rename-label" htmlFor={editorId}>
-        New {entityLabel} title
-      </label>
-      <input
-        aria-describedby={error === undefined ? undefined : errorId}
-        aria-invalid={error === undefined ? undefined : true}
-        id={editorId}
-        maxLength={241}
-        onChange={(event) => setDraft(event.currentTarget.value)}
-        onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
-          if (event.key === "Escape" && !isSavingRef.current) {
-            event.preventDefault();
-            cancel();
-          }
-        }}
-        readOnly={isSaving}
-        ref={inputRef}
-        value={draft}
-      />
-      <button disabled={isSaving} type="submit">
-        {isSaving ? "Saving…" : error === undefined ? "Save" : "Retry"}
-      </button>
-      <button disabled={isSaving} onClick={cancel} type="button">
-        Cancel
-      </button>
-      {error === undefined ? null : (
-        <p className="field-error" id={errorId}>
-          {error}
-        </p>
-      )}
-    </form>
+          <form aria-busy={isSaving} className="dialog-form" onSubmit={submit}>
+            <div className="dialog-header">
+              <h2 id={`${inputId}-dialog-title`}>{dialogTitle}</h2>
+              <button
+                aria-label={`Close ${dialogTitle.toLowerCase()}`}
+                className="icon-button dialog-close"
+                disabled={isSaving}
+                onClick={close}
+                title="Close"
+                type="button"
+              >
+                <XIcon aria-hidden="true" size={18} weight="bold" />
+              </button>
+            </div>
+            <label htmlFor={inputId}>{label}</label>
+            <input
+              aria-describedby={error === undefined ? undefined : errorId}
+              aria-invalid={error === undefined ? undefined : true}
+              autoComplete="off"
+              id={inputId}
+              maxLength={241}
+              onChange={(event) => setDraft(event.currentTarget.value)}
+              onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
+                if (event.key === "Escape" && !isSavingRef.current) {
+                  event.preventDefault();
+                  close();
+                }
+              }}
+              placeholder={placeholder}
+              readOnly={isSaving}
+              ref={inputRef}
+              value={draft}
+            />
+            {error === undefined ? null : (
+              <p className="field-error" id={errorId}>
+                {error}
+              </p>
+            )}
+            <div className="dialog-actions">
+              <button disabled={isSaving} onClick={close} type="button">
+                Cancel
+              </button>
+              <button className="button-primary" disabled={isSaving} type="submit">
+                {isSaving ? "Saving…" : error === undefined ? submitLabel : "Retry"}
+              </button>
+            </div>
+          </form>
+        </dialog>
+      ) : null}
+    </>
   );
 }
 
@@ -267,6 +237,24 @@ function formatUpdatedAt(timestamp: string): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(timestamp));
+}
+
+function AppHeader() {
+  return (
+    <header className="app-header">
+      <p className="brand">My Tracker</p>
+      <label className="search-shell">
+        <MagnifyingGlassIcon aria-hidden="true" size={18} />
+        <span className="sr-only">Search goals and tasks</span>
+        <input
+          aria-label="Search goals and tasks — coming soon"
+          disabled
+          placeholder="Search"
+          type="search"
+        />
+      </label>
+    </header>
+  );
 }
 
 export function TrackerApp({ service }: TrackerAppProps) {
@@ -296,6 +284,14 @@ export function TrackerApp({ service }: TrackerAppProps) {
   useEffect(() => {
     void loadWorkspace();
   }, [loadWorkspace]);
+
+  useEffect(() => {
+    if (saveState !== "saved") {
+      return;
+    }
+    const timeout = window.setTimeout(() => setSaveState("idle"), 1600);
+    return () => window.clearTimeout(timeout);
+  }, [saveState]);
 
   useEffect(() => {
     if (pendingFocusSelector === undefined) {
@@ -394,18 +390,14 @@ export function TrackerApp({ service }: TrackerAppProps) {
       <a className="skip-link" href="#main-content">
         Skip to main content
       </a>
-      <header className="app-header">
-        <div>
-          <p className="pixel-label">LOCAL NEW TAB</p>
-          <p className="brand">My Tracker</p>
-        </div>
-        <p className={`save-state save-state-${saveState}`}>
-          {saveState === "saving" ? "Saving on this device…" : null}
-          {saveState === "saved" ? "Saved on this device." : null}
-          {saveState === "failed" ? "Changes are not saved." : null}
-          {saveState === "idle" ? "Local only" : null}
+      <AppHeader />
+      {saveState === "idle" ? null : (
+        <p className={`save-toast save-state-${saveState}`} role="status">
+          {saveState === "saving" ? "Saving…" : null}
+          {saveState === "saved" ? "Saved" : null}
+          {saveState === "failed" ? "Changes are not saved" : null}
         </p>
-      </header>
+      )}
 
       {loadError === undefined ? null : (
         <section className="error-banner">
@@ -446,7 +438,7 @@ export function TrackerApp({ service }: TrackerAppProps) {
                 () =>
                   createdId === ""
                     ? undefined
-                    : `[data-goal-id="${createdId}"] .goal-open`,
+                    : `[data-goal-id="${createdId}"] .goal-open-surface`,
                 "local",
               );
             }}
@@ -578,13 +570,7 @@ function LoadingShell() {
       <a className="skip-link" href="#main-content">
         Skip to main content
       </a>
-      <header className="app-header">
-        <div>
-          <p className="pixel-label">LOCAL NEW TAB</p>
-          <p className="brand">My Tracker</p>
-        </div>
-        <p className="save-state">Loading local data</p>
-      </header>
+      <AppHeader />
       <main id="main-content">
         <h1>Loading local data</h1>
         <div className="skeleton-grid" aria-hidden="true">
@@ -607,25 +593,24 @@ interface HomeViewProps {
 function HomeView({ goals, onCreateGoal, onOpenGoal, onRenameGoal }: HomeViewProps) {
   return (
     <section>
-      <div className="page-heading">
-        <div>
-          <p className="eyebrow">Goals</p>
-          <h1>Your project pins</h1>
-          <p>Stored only in this Chrome profile.</p>
-        </div>
-        <EntityForm
-          buttonLabel="Create goal"
+      <div className="section-heading page-heading">
+        <h1>Goals</h1>
+        <EntityDialog
+          dialogTitle="Create goal"
           inputId="new-goal-title"
           label="Goal title"
           onSubmit={onCreateGoal}
-          placeholder="Ship My Tracker M1"
+          placeholder="Ship the next release"
+          submitLabel="Create goal"
+          triggerIcon={<PlusIcon aria-hidden="true" size={20} weight="bold" />}
+          triggerLabel="Create goal"
         />
       </div>
 
       {goals.length === 0 ? (
         <div className="empty-state">
           <h2>No goals yet</h2>
-          <p>Create one to start planning.</p>
+          <p>Use the plus button to create your first goal.</p>
         </div>
       ) : (
         <div className="goal-grid">
@@ -637,24 +622,37 @@ function HomeView({ goals, onCreateGoal, onOpenGoal, onRenameGoal }: HomeViewPro
                 data-goal-id={goalTree.goal.id}
                 key={goalTree.goal.id}
               >
-                <p className="pixel-label">GOAL {String(index + 1).padStart(2, "0")}</p>
-                <h2>{goalTree.goal.title}</h2>
-                <time dateTime={goalTree.goal.updatedAt}>Updated {updatedLabel}</time>
-                <div className="goal-actions">
-                  <button
-                    aria-label={`Open goal ${goalTree.goal.title}. Updated ${updatedLabel}`}
-                    className="goal-open"
-                    onClick={() => onOpenGoal(goalTree)}
-                    type="button"
-                  >
-                    Open goal
-                  </button>
-                  <RenameEditor
-                    entityLabel="goal"
-                    onRename={(title) => onRenameGoal(goalTree.goal, title)}
-                    title={goalTree.goal.title}
-                  />
+                <div
+                  aria-label={`Open goal ${goalTree.goal.title}. Updated ${updatedLabel}. Double-click or press Enter.`}
+                  className="goal-open-surface"
+                  onDoubleClick={() => onOpenGoal(goalTree)}
+                  onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onOpenGoal(goalTree);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <span className="goal-index" aria-hidden="true">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <h2>{goalTree.goal.title}</h2>
+                  <time dateTime={goalTree.goal.updatedAt}>{updatedLabel}</time>
                 </div>
+                <EntityDialog
+                  dialogTitle="Rename goal"
+                  initialValue={goalTree.goal.title}
+                  inputId={`rename-goal-${goalTree.goal.id}`}
+                  label="Goal title"
+                  onSubmit={(title) => onRenameGoal(goalTree.goal, title)}
+                  placeholder="Goal title"
+                  submitLabel="Save changes"
+                  triggerClassName="card-icon goal-edit"
+                  triggerIcon={<PencilSimpleIcon aria-hidden="true" size={18} />}
+                  triggerLabel={`Rename goal ${goalTree.goal.title}`}
+                />
               </article>
             );
           })}
@@ -695,161 +693,42 @@ function GoalView({
   onSelectPhase,
   selectedPhase,
 }: GoalViewProps) {
-  const [draftEditorIds, setDraftEditorIds] = useState<Set<string>>(
-    () => new Set(),
-  );
-  const [boardDraftEditorIds, setBoardDraftEditorIds] = useState<Set<string>>(
-    () => new Set(),
-  );
-  const [pendingNavigation, setPendingNavigation] =
-    useState<PendingNavigation>();
-  const backButtonRef = useRef<HTMLButtonElement>(null);
-  const keepEditingRef = useRef<HTMLButtonElement>(null);
-  const navigationTriggerRef = useRef<HTMLButtonElement>(null);
-  const hasUnsavedRename = draftEditorIds.size > 0;
-  const hasUnsavedBoardRename = boardDraftEditorIds.size > 0;
-  const backWarningId = "discard-rename-warning";
-
-  const handleDraftStateChange = useCallback(
-    (editorId: string, hasUnsavedDraft: boolean) => {
-      setDraftEditorIds((currentIds) => {
-        const nextIds = new Set(currentIds);
-        if (hasUnsavedDraft) {
-          nextIds.add(editorId);
-        } else {
-          nextIds.delete(editorId);
-        }
-        if (nextIds.size === currentIds.size) {
-          return currentIds;
-        }
-        return nextIds;
-      });
-    },
-    [],
-  );
-
-  const handleBoardDraftStateChange = useCallback(
-    (editorId: string, hasUnsavedDraft: boolean) => {
-      handleDraftStateChange(editorId, hasUnsavedDraft);
-      setBoardDraftEditorIds((currentIds) => {
-        const nextIds = new Set(currentIds);
-        if (hasUnsavedDraft) {
-          nextIds.add(editorId);
-        } else {
-          nextIds.delete(editorId);
-        }
-        return nextIds.size === currentIds.size ? currentIds : nextIds;
-      });
-    },
-    [handleDraftStateChange],
-  );
-
-  useEffect(() => {
-    if (
-      (pendingNavigation?.type === "back" && !hasUnsavedRename) ||
-      (pendingNavigation?.type === "phase" && !hasUnsavedBoardRename)
-    ) {
-      setPendingNavigation(undefined);
-    }
-  }, [hasUnsavedBoardRename, hasUnsavedRename, pendingNavigation]);
-
-  function requestBackNavigation() {
-    if (!hasUnsavedRename) {
-      onBack();
-      return;
-    }
-
-    navigationTriggerRef.current = backButtonRef.current;
-    setPendingNavigation({ type: "back" });
-    requestAnimationFrame(() => keepEditingRef.current?.focus());
-  }
-
-  function requestPhaseNavigation(
-    phaseId: string,
-    trigger: HTMLButtonElement,
-  ) {
-    if (phaseId === selectedPhase?.phase.id) {
-      return;
-    }
-    if (!hasUnsavedBoardRename) {
-      onSelectPhase(phaseId);
-      return;
-    }
-
-    navigationTriggerRef.current = trigger;
-    setPendingNavigation({ type: "phase", phaseId });
-    requestAnimationFrame(() => keepEditingRef.current?.focus());
-  }
-
-  function keepEditing() {
-    setPendingNavigation(undefined);
-    requestAnimationFrame(() => navigationTriggerRef.current?.focus());
-  }
-
-  function discardRenameAndNavigate() {
-    const navigation = pendingNavigation;
-    setPendingNavigation(undefined);
-    if (navigation?.type === "back") {
-      onBack();
-    } else if (navigation?.type === "phase") {
-      onSelectPhase(navigation.phaseId);
-    }
-  }
-
   return (
     <section>
       <button
-        aria-describedby={
-          pendingNavigation?.type === "back" ? backWarningId : undefined
-        }
-        className="back-button"
-        onClick={requestBackNavigation}
-        ref={backButtonRef}
+        aria-label="Back to goals"
+        className="icon-button back-button"
+        data-tooltip="Back to goals"
+        onClick={onBack}
+        title="Back to goals"
         type="button"
       >
-        Back to goals
+        <ArrowLeftIcon aria-hidden="true" size={20} />
       </button>
-      {pendingNavigation === undefined ? null : (
-        <section className="navigation-warning" aria-labelledby={backWarningId}>
-          <div>
-            <h2 id={backWarningId}>Discard the rename draft?</h2>
-            <p>
-              A rename has unsaved changes. {pendingNavigation.type === "back"
-                ? "Going back"
-                : "Switching phases"} will discard the draft.
-            </p>
-          </div>
-          <div className="warning-actions">
-            <button onClick={keepEditing} ref={keepEditingRef} type="button">
-              Keep editing
-            </button>
-            <button
-              className="button-danger"
-              onClick={discardRenameAndNavigate}
-              type="button"
-            >
-              Discard draft and {pendingNavigation.type === "back" ? "go back" : "switch phase"}
-            </button>
-          </div>
-        </section>
-      )}
-      <div className="goal-heading">
-        <div>
-          <p className="eyebrow">Current goal</p>
+      <div className="section-heading goal-heading">
+        <div className="title-actions">
           <h1>{goalTree.goal.title}</h1>
-          <RenameEditor
-            entityLabel="goal"
-            onDraftStateChange={handleDraftStateChange}
-            onRename={onRenameGoal}
-            title={goalTree.goal.title}
+          <EntityDialog
+            dialogTitle="Rename goal"
+            initialValue={goalTree.goal.title}
+            inputId={`rename-goal-${goalTree.goal.id}`}
+            label="Goal title"
+            onSubmit={onRenameGoal}
+            placeholder="Goal title"
+            submitLabel="Save changes"
+            triggerIcon={<PencilSimpleIcon aria-hidden="true" size={18} />}
+            triggerLabel={`Rename goal ${goalTree.goal.title}`}
           />
         </div>
-        <EntityForm
-          buttonLabel="Add phase"
+        <EntityDialog
+          dialogTitle="Create phase"
           inputId="new-phase-title"
           label="Phase title"
           onSubmit={onCreatePhase}
           placeholder="Foundation"
+          submitLabel="Create phase"
+          triggerIcon={<PlusIcon aria-hidden="true" size={20} weight="bold" />}
+          triggerLabel="Create phase"
         />
       </div>
 
@@ -863,19 +742,11 @@ function GoalView({
           <nav aria-label="Goal phases" className="phase-rail">
             {goalTree.phases.map(({ phase }) => (
               <button
-                aria-describedby={
-                  pendingNavigation?.type === "phase" &&
-                  pendingNavigation.phaseId === phase.id
-                    ? backWarningId
-                    : undefined
-                }
                 aria-current={phase.id === selectedPhase?.phase.id ? "page" : undefined}
                 className={phase.id === selectedPhase?.phase.id ? "phase-active" : undefined}
                 data-phase-id={phase.id}
                 key={phase.id}
-                onClick={(event) =>
-                  requestPhaseNavigation(phase.id, event.currentTarget)
-                }
+                onClick={() => onSelectPhase(phase.id)}
                 type="button"
               >
                 {phase.title}
@@ -886,7 +757,6 @@ function GoalView({
             <Board
               onCreateTask={onCreateTask}
               onMoveTask={onMoveTask}
-              onDraftStateChange={handleBoardDraftStateChange}
               onRenamePhase={(title) => onRenamePhase(selectedPhase.phase, title)}
               onRenameTask={onRenameTask}
               onReorderTask={onReorderTask}
@@ -902,7 +772,6 @@ function GoalView({
 interface BoardProps {
   phaseTree: PhaseTree;
   onCreateTask: (title: string) => Promise<void>;
-  onDraftStateChange: (editorId: string, hasUnsavedDraft: boolean) => void;
   onMoveTask: (task: Task, status: TaskStatus) => Promise<void>;
   onRenamePhase: (title: string) => Promise<void>;
   onRenameTask: (task: Task, title: string) => Promise<void>;
@@ -915,7 +784,6 @@ interface BoardProps {
 
 function Board({
   onCreateTask,
-  onDraftStateChange,
   onMoveTask,
   onRenamePhase,
   onRenameTask,
@@ -924,23 +792,30 @@ function Board({
 }: BoardProps) {
   return (
     <section className="board-section" aria-labelledby="phase-title">
-      <div className="board-heading">
-        <div>
-          <p className="eyebrow">Active phase</p>
+      <div className="section-heading board-heading">
+        <div className="title-actions">
           <h2 id="phase-title">{phaseTree.phase.title}</h2>
-          <RenameEditor
-            entityLabel="phase"
-            onDraftStateChange={onDraftStateChange}
-            onRename={onRenamePhase}
-            title={phaseTree.phase.title}
+          <EntityDialog
+            dialogTitle="Rename phase"
+            initialValue={phaseTree.phase.title}
+            inputId={`rename-phase-${phaseTree.phase.id}`}
+            label="Phase title"
+            onSubmit={onRenamePhase}
+            placeholder="Phase title"
+            submitLabel="Save changes"
+            triggerIcon={<PencilSimpleIcon aria-hidden="true" size={18} />}
+            triggerLabel={`Rename phase ${phaseTree.phase.title}`}
           />
         </div>
-        <EntityForm
-          buttonLabel="Add task"
+        <EntityDialog
+          dialogTitle="Create task"
           inputId="new-task-title"
           label="Task title"
           onSubmit={onCreateTask}
-          placeholder="Create normalized stores"
+          placeholder="Next useful step"
+          submitLabel="Create task"
+          triggerIcon={<PlusIcon aria-hidden="true" size={20} weight="bold" />}
+          triggerLabel="Create task"
         />
       </div>
 
@@ -967,7 +842,6 @@ function Board({
                     <TaskCard
                       key={task.id}
                       nextTask={tasks[index + 1]}
-                      onDraftStateChange={onDraftStateChange}
                       onMoveTask={onMoveTask}
                       onRenameTask={onRenameTask}
                       onReorderTask={onReorderTask}
@@ -989,7 +863,6 @@ interface TaskCardProps {
   task: Task;
   previousTask: Task | undefined;
   nextTask: Task | undefined;
-  onDraftStateChange: (editorId: string, hasUnsavedDraft: boolean) => void;
   onMoveTask: (task: Task, status: TaskStatus) => Promise<void>;
   onRenameTask: (task: Task, title: string) => Promise<void>;
   onReorderTask: (
@@ -1001,7 +874,6 @@ interface TaskCardProps {
 
 function TaskCard({
   nextTask,
-  onDraftStateChange,
   onMoveTask,
   onRenameTask,
   onReorderTask,
@@ -1009,9 +881,29 @@ function TaskCard({
   task,
 }: TaskCardProps) {
   const actionReasonId = useId();
+  const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
+  const [actionError, setActionError] = useState<string>();
   const isMutatingRef = useRef(false);
+  const actionsDialogRef = useRef<HTMLDialogElement>(null);
+  const actionsTriggerRef = useRef<HTMLButtonElement>(null);
   const mutationReasonId = `${actionReasonId}-pending`;
+
+  useEffect(() => {
+    if (!isActionsOpen) {
+      return;
+    }
+    const dialog = actionsDialogRef.current;
+    if (dialog !== null && !dialog.open) {
+      dialog.showModal();
+    }
+  }, [isActionsOpen]);
+
+  function closeActions() {
+    if (!isMutatingRef.current) {
+      actionsDialogRef.current?.close();
+    }
+  }
 
   async function runTaskMutation(action: () => Promise<void>) {
     if (isMutatingRef.current) {
@@ -1020,10 +912,12 @@ function TaskCard({
 
     isMutatingRef.current = true;
     setIsMutating(true);
+    setActionError(undefined);
     try {
       await action();
-    } catch {
-      // The shared save banner and retry action report the mutation failure.
+      actionsDialogRef.current?.close();
+    } catch (error) {
+      setActionError(getErrorMessage(error));
     } finally {
       isMutatingRef.current = false;
       setIsMutating(false);
@@ -1032,123 +926,160 @@ function TaskCard({
 
   return (
     <article className="task-card" data-task-id={task.id} tabIndex={-1}>
-      <h4>{task.title}</h4>
-      <RenameEditor
-        entityLabel="task"
-        onDraftStateChange={onDraftStateChange}
-        onRename={(title) => onRenameTask(task, title)}
-        title={task.title}
-      />
-      <div
-        aria-busy={isMutating}
-        aria-label={`Task actions for ${task.title}`}
-        className="task-controls"
-        role="group"
-      >
-        {isMutating ? (
-          <p className="task-action-state" id={mutationReasonId}>
-            Updating task…
-          </p>
-        ) : null}
-        <div className="task-control-section">
-          <p className="task-control-label">Status</p>
-          <div className="task-status-controls">
-            {TASK_STATUSES.map((status) => {
-              const isCurrentStatus = task.status === status;
-              const reasonId = `${actionReasonId}-${status}`;
-              return (
-                <div className="task-action" key={status}>
-                  <button
-                    aria-describedby={
-                      isMutating
-                        ? mutationReasonId
-                        : isCurrentStatus
-                          ? reasonId
-                          : undefined
-                    }
-                    aria-disabled={isMutating || isCurrentStatus || undefined}
-                    aria-label={`Move ${task.title} to ${STATUS_LABELS[status]}`}
-                    onClick={() => {
-                      if (!isMutatingRef.current && !isCurrentStatus) {
-                        void runTaskMutation(() => onMoveTask(task, status));
-                      }
-                    }}
-                    type="button"
-                  >
-                    {STATUS_LABELS[status]}
-                  </button>
-                  {isCurrentStatus ? (
-                    <span className="action-reason" id={reasonId}>
-                      Current status
-                    </span>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        <div className="task-control-section">
-          <p className="task-control-label">Order in column</p>
-          <div className="task-order-controls">
-            <div className="task-action">
-              <button
-                aria-describedby={
-                  isMutating
-                    ? mutationReasonId
-                    : previousTask === undefined
-                      ? `${actionReasonId}-before`
-                      : undefined
-                }
-                aria-disabled={isMutating || previousTask === undefined || undefined}
-                aria-label={`Move ${task.title} before ${previousTask?.title ?? "the first task"}`}
-                onClick={() => {
-                  if (!isMutatingRef.current && previousTask !== undefined) {
-                    void runTaskMutation(() =>
-                      onReorderTask(task, previousTask, "before"),
-                    );
-                  }
-                }}
-                type="button"
-              >
-                Move before
-              </button>
-              {previousTask === undefined ? (
-                <span className="action-reason" id={`${actionReasonId}-before`}>
-                  Already first
-                </span>
-              ) : null}
-            </div>
-            <div className="task-action">
-              <button
-                aria-describedby={
-                  isMutating
-                    ? mutationReasonId
-                    : nextTask === undefined
-                      ? `${actionReasonId}-after`
-                      : undefined
-                }
-                aria-disabled={isMutating || nextTask === undefined || undefined}
-                aria-label={`Move ${task.title} after ${nextTask?.title ?? "the last task"}`}
-                onClick={() => {
-                  if (!isMutatingRef.current && nextTask !== undefined) {
-                    void runTaskMutation(() =>
-                      onReorderTask(task, nextTask, "after"),
-                    );
-                  }
-                }}
-                type="button"
-              >
-                Move after
-              </button>
-              {nextTask === undefined ? (
-                <span className="action-reason" id={`${actionReasonId}-after`}>
-                  Already last
-                </span>
-              ) : null}
-            </div>
-          </div>
+      <div className="task-card-header">
+        <h4>{task.title}</h4>
+        <div className="card-actions">
+          <EntityDialog
+            dialogTitle="Rename task"
+            initialValue={task.title}
+            inputId={`rename-task-${task.id}`}
+            label="Task title"
+            onSubmit={(title) => onRenameTask(task, title)}
+            placeholder="Task title"
+            submitLabel="Save changes"
+            triggerClassName="card-icon"
+            triggerIcon={<PencilSimpleIcon aria-hidden="true" size={17} />}
+            triggerLabel={`Rename task ${task.title}`}
+          />
+          <button
+            aria-label={`Open actions for ${task.title}`}
+            className="icon-button card-icon"
+            data-tooltip="Task actions"
+            onClick={() => {
+              setActionError(undefined);
+              setIsActionsOpen(true);
+            }}
+            ref={actionsTriggerRef}
+            title="Task actions"
+            type="button"
+          >
+            <DotsThreeIcon aria-hidden="true" size={20} weight="bold" />
+          </button>
         </div>
       </div>
+      {isActionsOpen ? (
+        <dialog
+          aria-labelledby={`${actionReasonId}-title`}
+          className="entity-dialog task-dialog"
+          onCancel={(event) => {
+            if (isMutatingRef.current) {
+              event.preventDefault();
+            }
+          }}
+          onClose={() => {
+            setIsActionsOpen(false);
+            setActionError(undefined);
+            requestAnimationFrame(() => actionsTriggerRef.current?.focus());
+          }}
+          ref={actionsDialogRef}
+        >
+          <div aria-busy={isMutating} className="dialog-form">
+            <div className="dialog-header">
+              <div>
+                <h2 id={`${actionReasonId}-title`}>Task actions</h2>
+                <p>{task.title}</p>
+              </div>
+              <button
+                aria-label="Close task actions"
+                className="icon-button dialog-close"
+                disabled={isMutating}
+                onClick={closeActions}
+                title="Close"
+                type="button"
+              >
+                <XIcon aria-hidden="true" size={18} weight="bold" />
+              </button>
+            </div>
+            {isMutating ? (
+              <p className="task-action-state" id={mutationReasonId}>
+                Updating task…
+              </p>
+            ) : null}
+            <fieldset className="task-option-group">
+              <legend>Status</legend>
+              <div className="task-option-grid task-status-options">
+                {TASK_STATUSES.map((status) => {
+                  const isCurrentStatus = task.status === status;
+                  const StatusIcon =
+                    status === "todo"
+                      ? CircleIcon
+                      : status === "in_progress"
+                        ? PlayCircleIcon
+                        : CheckCircleIcon;
+                  return (
+                    <button
+                      aria-label={`Move ${task.title} to ${STATUS_LABELS[status]}`}
+                      aria-describedby={isMutating ? mutationReasonId : undefined}
+                      aria-pressed={isCurrentStatus}
+                      className="task-option"
+                      disabled={isMutating || isCurrentStatus}
+                      key={status}
+                      onClick={() => void runTaskMutation(() => onMoveTask(task, status))}
+                      type="button"
+                    >
+                      <StatusIcon aria-hidden="true" size={20} />
+                      <span>{STATUS_LABELS[status]}</span>
+                      {isCurrentStatus ? <small>Current</small> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+            <fieldset className="task-option-group">
+              <legend>Order in column</legend>
+              <div className="task-option-grid">
+                <button
+                  aria-label={
+                    previousTask === undefined
+                      ? `${task.title} is already first`
+                      : `Move ${task.title} before ${previousTask.title}`
+                  }
+                  aria-describedby={isMutating ? mutationReasonId : undefined}
+                  className="task-option"
+                  disabled={isMutating || previousTask === undefined}
+                  onClick={() => {
+                    if (previousTask !== undefined) {
+                      void runTaskMutation(() =>
+                        onReorderTask(task, previousTask, "before"),
+                      );
+                    }
+                  }}
+                  type="button"
+                >
+                  <CaretUpIcon aria-hidden="true" size={20} />
+                  <span>Move before</span>
+                  {previousTask === undefined ? <small>Already first</small> : null}
+                </button>
+                <button
+                  aria-label={
+                    nextTask === undefined
+                      ? `${task.title} is already last`
+                      : `Move ${task.title} after ${nextTask.title}`
+                  }
+                  aria-describedby={isMutating ? mutationReasonId : undefined}
+                  className="task-option"
+                  disabled={isMutating || nextTask === undefined}
+                  onClick={() => {
+                    if (nextTask !== undefined) {
+                      void runTaskMutation(() =>
+                        onReorderTask(task, nextTask, "after"),
+                      );
+                    }
+                  }}
+                  type="button"
+                >
+                  <CaretDownIcon aria-hidden="true" size={20} />
+                  <span>Move after</span>
+                  {nextTask === undefined ? <small>Already last</small> : null}
+                </button>
+              </div>
+            </fieldset>
+            {actionError === undefined ? null : (
+              <p className="field-error">{actionError}</p>
+            )}
+          </div>
+        </dialog>
+      ) : null}
     </article>
   );
 }

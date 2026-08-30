@@ -1,7 +1,7 @@
 ---
-version: 1.0.0
+version: 1.1.0
 name: my-tracker-design-system
-status: M1 specification
+status: M1 minimal-interface refinement
 description: >-
   A calm, local-first new-tab workspace with dark flat surfaces, readable UI
   typography, and small code-native pixel details. Goals appear as compact
@@ -29,7 +29,8 @@ or copied reference components.
 ### Character
 
 - Calm: low-glare dark canvas, stable layout, no continuous motion.
-- Minimal: flat surfaces, one-pixel borders, almost no shadow.
+- Minimal: every persistent element must earn its place; one clear trigger is
+  preferred over a permanently expanded form or a row of competing actions.
 - Personal: goals resemble small pinned working notes rather than enterprise
   project tiles.
 - Precise: status, order, focus, and save state are always explicit.
@@ -39,12 +40,34 @@ or copied reference components.
 
 - No gradients, neon, glassmorphism, photographic textures, or large shadows.
 - No proprietary fonts or third-party brand assets.
-- No emoji as interface iconography.
+- No emoji, ad-hoc SVG, Unicode symbol, or mixed icon family as interface
+  iconography. All application icons come from Phosphor Icons through
+  `@phosphor-icons/react` and are bundled locally.
 - Pixel styling is an accent, never the body type or a readability tax.
 - Color never communicates task status, errors, or selection by itself.
 - All pointer move/reorder actions have named keyboard equivalents.
 - Decorative effects never block local data from rendering or capture from
   becoming usable.
+
+### Minimalism as an interaction rule
+
+Minimalism is a product constraint, not a visual theme. Design and Dev must
+apply these rules before adding or expanding any control:
+
+1. Keep only information needed to understand the current context or make the
+   next decision. Local-storage implementation labels and repeated context copy
+   do not belong in the resting UI.
+2. Use one Phosphor icon trigger for a compact, familiar action. The trigger
+   must retain a context-rich accessible name, visible focus, and tooltip.
+3. Move create, rename, and secondary task actions into focused modal dialogs.
+   Labels, validation, consequences, and Save/Cancel text remain visible inside
+   the dialog; minimalism must not make decisions ambiguous.
+4. Reveal card-level edit/action icons on hover or focus, and keep them visible
+   on devices without hover.
+5. Do not replace essential status, error, destructive, or recovery language
+   with an icon alone.
+6. Before shipping a new persistent button, show why it cannot be an existing
+   card gesture, contextual icon, modal action, or progressive disclosure.
 
 ## 2. Information hierarchy
 
@@ -53,22 +76,22 @@ The M1 hierarchy follows the product model, not visual novelty:
 ```text
 Application shell
   Home
-    Page identity
-    Create goal
+    My Tracker / search placeholder
+    Goals / create icon
     Goal pin grid
       Goal title
       Updated time
-      Open action
+      Double-click open / keyboard open
+      Hover/focus edit icon
   Goal detail
-    Back to goals / goal title / save state
+    Back icon / goal title / edit icon / create-phase icon
     Phase rail
-    Create phase
     Active phase board
       Todo
       In Progress
       Done
         Task cards
-        Create task
+        Hover/focus edit and action icons
 ```
 
 At any moment, the strongest visible element is the current context: the goal
@@ -189,7 +212,7 @@ single overlay shadow is reserved for a layer that truly sits above content.
 | Token | Value | Use |
 | --- | --- | --- |
 | `motion.fast` | `120ms` | Hover/focus color transitions |
-| `motion.standard` | `180ms` | Menu, inline editor, task move feedback |
+| `motion.standard` | `180ms` | Modal, menu, task move feedback |
 | `motion.ease` | `cubic-bezier(0.2, 0, 0, 1)` | Default easing |
 
 - Animate only `transform` and `opacity` when motion is needed.
@@ -201,12 +224,21 @@ single overlay shadow is reserved for a layer that truly sits above content.
 
 ### 3.6 Iconography
 
-- Use small original inline SVG primitives with a consistent `2px` stroke and
-  square or lightly rounded ends.
-- Common actions use both icon and accessible name; destructive actions are not
-  represented by an ambiguous icon alone.
-- Pixel motifs are built with CSS borders, pseudo-elements, or inline SVG grid
-  paths. They must not load external images.
+- Phosphor Icons is the single application icon source. React implementation
+  uses tree-shaken imports from `@phosphor-icons/react`; it must not fetch an
+  icon font, sprite, SVG, or CDN asset at runtime.
+- Default interface icons use the regular weight at `18–20px`. Bold weight is
+  reserved for the primary add trigger; fill/duotone variants require a stated
+  semantic reason.
+- Icon-only triggers are always at least `44px × 44px`, have a context-rich
+  `aria-label`, visible focus, and a tooltip available on hover/focus.
+- Use `Plus` for create, `PencilSimple` for rename, `DotsThree` for secondary
+  task actions, `ArrowLeft` for back, `MagnifyingGlass` for search, and
+  `Circle` / `PlayCircle` / `CheckCircle` for task-status choices.
+- Destructive, error-recovery, and final confirmation actions retain visible
+  text. An icon may support the label but never replaces the consequence.
+- The Goal pin motif is product geometry, not interface iconography. It remains
+  CSS pseudo-element geometry and loads no external image.
 
 ## 4. Signature component: Goal pixel pin
 
@@ -219,10 +251,10 @@ with a small square pin mark, not a photograph or imitation of physical paper.
         [ 8 x 8 square pin head ]
                [ 2 x 6 stem ]
   +--------------------------------+
-  | GOAL 03                        |
+  | 03                        [edit]|
   | Ship My Tracker M1             |
   |                                |
-  | Updated 14:20             Open |
+  | Aug 29, 14:20                  |
   +--------------------------------+
 ```
 
@@ -230,8 +262,8 @@ with a small square pin mark, not a photograph or imitation of physical paper.
 - The pin uses a `::before` square and `::after` stem centered on the top edge.
 - The pin and card use the same foreground color at different opacity. No
   external image, paper texture, curl, tape, pushpin illustration, or shadow.
-- The pixel eyebrow is decorative context; the accessible name is the goal title
-  plus updated time.
+- The compact number is decorative context; the accessible name is the goal
+  title, updated time, and `Double-click or press Enter to open` instruction.
 - Card content remains aligned to the standard spacing grid. The pixel motif is
   never used to distort text or hit targets.
 
@@ -240,8 +272,8 @@ with a small square pin mark, not a photograph or imitation of physical paper.
 | State | Treatment | Required behavior |
 | --- | --- | --- |
 | Rest | Note color, dark text, dark one-pixel border | Title and updated time visible |
-| Hover | Border becomes stronger; open label gains underline | No rotation or lift |
-| Focus-visible | `2px` outer focus ring with `2px` offset | Full card action has a clear name |
+| Hover | Border becomes stronger; edit icon appears | Double-click opens; no rotation or lift |
+| Focus-visible | `2px` outer focus ring with `2px` offset; edit icon appears | Enter or Space opens with a clear accessible name |
 | Active/pressed | `translateY(1px)` or darker border | No scale collapse |
 | Selected/open | Dark inset keyline plus `Current goal` text for assistive tech | Color is not the only cue |
 | Saving | Inline `Saving` text with small square progress mark | Editing remains understandable |
@@ -256,7 +288,13 @@ it must be deterministic and removed in reduced-motion mode.
 ### 5.1 Application shell
 
 - Full-viewport `color.canvas`; no splash illustration.
-- A compact top row contains `My Tracker`, current context, and local save state.
+- A compact top row contains only `My Tracker` and a search-shaped placeholder.
+  Search is visibly unavailable until implemented and must not pretend to work.
+- Resting labels such as `Local only`, `Local New Tab`, and `Stored only in this
+  Chrome profile` are removed. Local-only remains a product invariant and is
+  communicated in settings/onboarding or when it changes a decision.
+- Saving and failure state appears only while relevant as a compact status toast
+  or error banner, then successful idle chrome clears.
 - Main content renders independently of nonessential decoration.
 - Loading uses stable skeleton blocks matching final dimensions. Do not replace
   the entire page with a centered spinner.
@@ -279,12 +317,22 @@ Text action:
 - No container until hover/focus; underline on hover is allowed.
 - Only for non-destructive low-emphasis actions.
 
-All buttons define rest, hover, focus-visible, pressed, disabled, and busy states.
-Busy controls retain their width and label context, for example `Creating goal`.
+Icon trigger:
 
-### 5.3 Inputs and inline editors
+- Transparent at rest with a `44px` hit target; quiet surface/border on hover.
+- Uses only the canonical Phosphor mapping from section 3.6.
+- Card-level triggers appear on hover/focus and remain visible without hover.
 
-- Label remains visible above the field; placeholder is an example, not a label.
+All buttons define rest, hover, focus-visible, pressed, disabled, and busy
+states. Modal commit/cancel/retry buttons keep visible text; icon-only controls
+are not used when the user must understand a consequence.
+
+### 5.3 Inputs and modal editors
+
+- Create and rename inputs do not remain expanded in the resting page. A Plus or
+  PencilSimple trigger opens a native modal dialog.
+- Inside the dialog, the label remains visible above the field; placeholder is
+  an example, not a label.
 - Dark `surface.2`, one-pixel interactive border, `4px` radius, `16px`
   horizontal padding.
 - Focus uses the global focus token, not color fill alone.
@@ -292,6 +340,9 @@ Busy controls retain their width and label context, for example `Creating goal`.
   the previous value.
 - Empty or whitespace-only input shows an inline error and does not write.
 - A failed save keeps the draft in the field and offers `Retry` and `Cancel`.
+- Dialogs trap focus through the platform modal behavior, Escape cancels when no
+  save is pending, and close returns focus to the icon trigger or newly created
+  entity.
 
 ### 5.4 Phase rail
 
@@ -300,7 +351,10 @@ Busy controls retain their width and label context, for example `Creating goal`.
   phases remain buttons/tabs with clear names.
 - The rail scrolls horizontally when it cannot fit. It never wraps into an
   ambiguous two-dimensional tab order.
-- `Create phase` is visually separate from existing phases.
+- A Plus icon beside the goal heading opens the create-phase modal; no persistent
+  phase input occupies the rail.
+- The active phase title exposes a PencilSimple icon on hover/focus and renames
+  through a modal.
 - M1 supports selecting and renaming a phase. Phase reordering and non-empty
   phase deletion are deferred.
 
@@ -318,24 +372,29 @@ Busy controls retain their width and label context, for example `Creating goal`.
 ### 5.6 Task card
 
 - Flat `surface.1` card with one-pixel border and `8px` radius.
-- M1 content: task title, phase context when needed, and visible move/reorder
-  actions. Deadline, checklist, priority, and description slots are deferred and
-  must not appear as fake data.
+- Resting content is the task title only. PencilSimple and DotsThree triggers
+  appear on hover/focus; they remain visible on devices without hover.
+- PencilSimple opens rename. DotsThree opens the task-action modal containing
+  status and within-column order choices. Deadline, checklist, priority, and
+  description slots are deferred and must not appear as fake data.
 - Hover changes border/surface only; focus-visible uses the global ring.
 - The entire card is never an implicit drag handle.
 - Renaming is immediate locally and visibly reports saving or failure.
 
 ### 5.7 Move and reorder controls
 
-M1 uses the same explicit named actions for pointer and keyboard users:
+M1 uses the same explicit named actions for pointer and keyboard users inside
+the task-action modal:
 
 - `Move to Todo`, `Move to In Progress`, and `Move to Done` change status and
   append the task to the destination column.
 - `Move before` and `Move after` reorder within the current status column.
 - A successful move updates status/order as one user action, restores focus to
   the moved task, and announces its destination.
-- Invalid actions are disabled with a discoverable reason; they are not omitted
-  in a way that makes the order model unclear.
+- Status choices use Phosphor `Circle`, `PlayCircle`, and `CheckCircle` with
+  visible text. Order choices use `CaretUp` and `CaretDown` with visible text.
+- Invalid actions are disabled with a visible reason such as `Current`,
+  `Already first`, or `Already last`; they are not omitted.
 
 If a later milestone adds drag-and-drop, it must resolve to these same stored
 results. The named-action path remains authoritative and cannot be removed.
@@ -361,25 +420,27 @@ The UI must never claim `Saved` before the repository write resolves.
 
 Order:
 
-1. Page label and local-only reassurance.
-2. `Create goal` field/action.
-3. Empty message: `No goals yet. Create one to start planning.`
+1. `Goals` heading and Plus icon.
+2. Empty message: `No goals yet.`
 
-The create field is the first task-specific focus target. Invalid submission is
-reported inline without clearing the field.
+The Plus icon is the first task-specific focus target and opens the create-goal
+modal. Invalid submission is reported inside the modal without clearing it.
 
 ### 6.2 Home — populated
 
 - Goal pins use `repeat(auto-fit, minmax(240px, 1fr))` with a practical maximum
   width around `360px` so a single goal does not become a banner.
 - DOM/tab order matches persisted goal order.
+- Double-clicking a card opens it. Enter or Space on the focused card produces
+  the same result; no pointer-only dependency is introduced.
+- PencilSimple appears on hover/focus and opens the rename modal.
 - Opening a Goal records/restores Home scroll position when navigating back.
 - M1 has no archive/delete affordance and no decorative dashboard widgets.
 
 ### 6.3 Goal detail — no phases
 
-- Back action, editable goal title, and save state remain visible.
-- The board is replaced by a focused empty state with `Create phase`.
+- Back icon, goal title, PencilSimple, and Plus remain visible.
+- The board is replaced by a focused empty state; Plus opens create phase.
 - Do not render three meaningless empty columns before a phase exists.
 
 ### 6.4 Goal detail — phase without tasks
@@ -387,14 +448,15 @@ reported inline without clearing the field.
 - Active phase appears in the phase rail.
 - Three empty status columns are visible because they teach the fixed workflow
   and are valid destinations.
-- `Create task` belongs to the active phase and defaults to Todo.
+- The Plus icon beside the active phase opens the task modal and defaults the
+  new task to Todo.
 
 ### 6.5 Goal detail — populated board
 
 - The active phase is explicit in the rail and route/application state.
 - Every task appears in exactly one status column.
-- Create/rename, pointer/keyboard named move, and within-column before/after
-  reorder expose saving/saved/failure feedback.
+- Create/rename modal flows and the pointer/keyboard task-action modal expose
+  saving/saved/failure feedback.
 - Cross-status moves append to the destination column deterministically.
 - Reopening New Tab renders the persisted goal, phase, task, status, and order
   without celebratory or onboarding interruption.
@@ -422,8 +484,8 @@ content stress tests, not device-name assumptions.
 
 - The phase rail and board are separate horizontal scroll regions with visible
   edges/labels; nested scrolling must not hide the active phase.
-- On narrow widths, task create/edit can use an in-flow panel or full viewport
-  sheet later; M1 inline forms must not overflow.
+- On narrow widths, create/edit dialogs stay within the viewport and task-action
+  options collapse without horizontal overflow.
 - Goal title and actions wrap into two rows before controls shrink below `44px`.
 - At `200%` zoom, core M1 actions remain reachable and text does not overlap.
 
@@ -438,15 +500,18 @@ content stress tests, not device-name assumptions.
 
 ### Editing
 
-- Enter submits single-line create/rename.
-- Escape cancels and returns focus to the trigger.
+- Plus/PencilSimple opens the appropriate modal and focuses its labeled input.
+- Enter submits single-line create/rename; Escape closes when no save is pending.
+- Closing returns focus to the trigger; successful creation may instead focus
+  the created entity.
 - Successful creation focuses the created entity or its title control.
 - Failed creation keeps focus in the invalid/failed field and connects error text
   through `aria-describedby`.
 
 ### Moving
 
-- Task actions have context-rich names, for example `Move Build shell`.
+- DotsThree opens `Task actions`; every option keeps a context-rich accessible
+  name, for example `Move Build shell to Done`.
 - Move success announcement includes task, status, and ordinal position.
 - Pointer and keyboard activation of a named move return focus to the same task.
 - Do not use unmodified arrow keys to move tasks while they are reading/navigation
@@ -500,6 +565,8 @@ implementation claims.
 ## 11. Content voice
 
 - Short, direct, and specific: `Create goal`, `Rename phase`, `Move to Done`.
+- Resting UI avoids implementation reassurance such as `Local only` and
+  repeated navigation labels. Tooltips name compact icon triggers.
 - Use sentence case except short pixel labels such as `TODO`.
 - Explain consequences before risky future actions; do not rely on iconography.
 - Local-first copy is factual: `Saved on this device`, not `Synced` or `Online`.
@@ -524,8 +591,10 @@ Required in M1:
 
 - Dark flat shell and readable typography.
 - Original code-native Goal pixel pin.
-- Goal/phase/task create and rename states.
-- Fixed-status board with pointer and keyboard named move/reorder actions.
+- Goal/phase/task create and rename modal states with Phosphor icon triggers.
+- Fixed-status board with a compact task-action modal and pointer/keyboard named
+  move/reorder actions.
+- Header reduced to My Tracker and the visibly deferred search placeholder.
 - Loading, empty, invalid, saving, saved, save-failed, and storage-failed states.
 - Focus, announcements, reduced-motion baseline, and responsive fallback.
 - Cross-status append and within-column before/after behavior.

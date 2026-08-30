@@ -4,7 +4,8 @@
 
 Complete. The 2026-08-29 acceptance evidence passes all 22 criteria, including
 the real unpacked New Tab override, IndexedDB reopen, and DevTools Offline gate.
-M1 is ready to hand off to M2.
+The 2026-08-30 minimal-interface regression also passes against the rebuilt
+production bundle. M1 is ready to hand off to M2.
 
 ## User outcome
 
@@ -24,7 +25,10 @@ This is the smallest end-to-end slice that proves the riskiest early invariant: 
 - A task belongs to exactly one goal and one phase, and its `goalId` must match the goal that owns its phase.
 - Cross-status movement appends the task to the destination column. Reordering before or after another task changes order only within the current phase and status.
 - Public AI-plan and backup JSON Schemas remain unchanged in M1.
-- M1 UI is functional rather than visually final. The personalized design documentation guides the shell and core states after Design completes it; final visual polish remains M6 work.
+- M1 uses the approved minimal interaction language: Phosphor icon triggers,
+  create/rename/task-action modals, a My Tracker + search-placeholder header,
+  and no resting implementation labels or expanded forms. Final stress polish
+  remains M6 work.
 
 ## In scope
 
@@ -32,7 +36,8 @@ This is the smallest end-to-end slice that proves the riskiest early invariant: 
 - Domain entities, invariants, repository ports, application use cases, and IndexedDB adapters for goals, phases, and tasks.
 - Create and title-only rename operations for goals, phases, and tasks.
 - Deterministic sibling positions and task movement between the three fixed statuses.
-- A minimal home/goal/phase/board presentation sufficient to run the acceptance journey.
+- A minimal home/goal/phase/board presentation with progressive-disclosure
+  modals and canonical Phosphor icon triggers.
 - Pointer-operable and keyboard-operable named controls for task status movement and within-column reordering.
 - Loading, empty, invalid-input, save-failed, retry, saved, and persisted-after-reopen states.
 - Unit, IndexedDB integration, production-build, and unpacked-Chrome acceptance evidence.
@@ -46,7 +51,8 @@ This is the smallest end-to-end slice that proves the riskiest early invariant: 
 - Moving tasks between phases.
 - Descriptions, priorities exposed in UI, deadlines, task notifications, checklist items, notes, reminders, settings, import, export, and restore.
 - Drag-and-drop as an M1 exit requirement. Named move/reorder controls satisfy the functional pointer and keyboard paths; richer drag behavior remains a later UI refinement.
-- Final typography, animation, responsive polish, acceptance screenshots, and complete design-system implementation.
+- Final typography, advanced animation, stress-dataset tuning, and the complete
+  M6 hardening pass.
 - Chrome Web Store publication or any remote deployment.
 
 ## Preconditions
@@ -96,12 +102,14 @@ This is the smallest end-to-end slice that proves the riskiest early invariant: 
 ### Empty and loading states
 
 4. Before IndexedDB loading resolves, the UI shows a loading state and does not briefly present a false empty dataset.
-5. With no goals, the user sees a clear empty state and an operable Create goal action.
+5. With no goals, the user sees a clear empty state and an operable Plus icon
+   that opens the labeled Create goal modal.
 6. A goal with no phases offers Add phase. A phase with no tasks still shows Todo, In Progress, and Done as valid empty columns and offers Add task.
 
 ### Create and edit
 
-7. The owner can create a valid goal, open it, add a valid phase, select it, and add a valid task without using a mouse.
+7. The owner can create a valid goal, open it, add a valid phase, select it, and
+   add a valid task through keyboard-operable icon/modal flows without a mouse.
 8. The owner can rename each created goal, phase, and task, and the persisted UI reflects the trimmed title.
 9. Empty, whitespace-only, and over-240-character titles show an inline error, preserve the editable value, and write no entity or partial hierarchy.
 10. Titles render as text and are never evaluated as HTML or code.
@@ -110,7 +118,9 @@ This is the smallest end-to-end slice that proves the riskiest early invariant: 
 
 11. A task cannot be created for a missing phase or with a `goalId` inconsistent with its phase.
 12. The board exposes exactly Todo, In Progress, and Done.
-13. The owner can move a task from Todo to In Progress through a pointer-operable named control and through keyboard operation of the same behavior.
+13. The owner can open the task-action modal and move a task from Todo to In
+    Progress through a pointer-operable named control and through keyboard
+    operation of the same behavior.
 14. A cross-status move appends to the destination; before/after controls reorder within a column; the result remains deterministic after reload.
 15. After a keyboard move or reorder, focus remains on the moved task or an equivalent stable task control, and a concise status change is exposed to assistive technology.
 16. Completing and reopening a task applies the documented `completedAt` rule without changing its phase or silently changing any unrelated record.
@@ -138,9 +148,12 @@ This is the smallest end-to-end slice that proves the riskiest early invariant: 
 ## Functional UX and accessibility expectations
 
 - The functional shell follows the hierarchy Home -> Goal -> Phase -> three-column board. Route shape and visual composition may follow the approved Design output without changing entity semantics.
-- Create and rename controls have visible labels, visible focus, inline validation, and an explicit saving/saved/failed state where persistence is not immediate.
+- Create and rename icon triggers have contextual accessible names, tooltips,
+  visible focus, and 44 px targets. Their modal inputs retain visible labels,
+  inline validation, and explicit saving/saved/failed states.
 - Enter submits a valid focused create/rename form. Escape cancels editing and restores the last persisted value.
-- Every task move/reorder action has an explicit accessible name containing the task and destination or direction.
+- DotsThree opens the task-action modal; every move/reorder option has an
+  explicit accessible name containing the task and destination or direction.
 - Status is communicated by column heading and text, not color alone.
 - Empty columns remain understandable and operable without a pointer.
 - M1 does not gate on pixel-perfect styling, decorative rotation, motion, or drag sensors. Those choices must not reduce keyboard access or readability when added later.

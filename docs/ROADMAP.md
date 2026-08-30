@@ -22,8 +22,9 @@ Exit gate:
 
 ## M1 — Durable goal vertical slice
 
-Status: complete. All 22 acceptance criteria pass, including the unpacked
-New Tab, real IndexedDB reopen, and offline no-external-request gate.
+Status: complete, with the 2026-08-30 minimal-interface refinement applied.
+All 22 acceptance criteria pass, including the unpacked New Tab, real IndexedDB
+reopen, and offline no-external-request gate.
 
 Ready work item: [`docs/work-items/M1_DURABLE_GOAL_SLICE.md`](work-items/M1_DURABLE_GOAL_SLICE.md)
 
@@ -37,7 +38,8 @@ In scope:
 
 - WXT Manifest V3 shell and React New Tab.
 - Domain types and IndexedDB repositories for goal/phase/task.
-- Title-only create/rename flows for goals, phases, and tasks.
+- Title-only create/rename modal flows for goals, phases, and tasks, exposed by
+  canonical Phosphor icon triggers.
 - Three-column board with deterministic task status movement and within-column ordering through pointer-operable and keyboard-operable controls.
 - Production build and unpacked installation instructions.
 
@@ -48,7 +50,9 @@ Out of scope:
 Execution order:
 
 - Dev may implement domain rules, repository ports, persistence, and application use cases while Design finishes the personalized design specification.
-- The minimal functional M1 UI follows the completed design documentation closely enough to expose the acceptance journey and required states.
+- The M1 UI follows the enforced minimal interaction language in `DESIGN.md`:
+  a My Tracker/search shell, progressive-disclosure modals, and no resting
+  implementation labels or expanded edit forms.
 - Final visual-system refinement remains in M6 and must not delay business-logic verification.
 
 Exit gate:

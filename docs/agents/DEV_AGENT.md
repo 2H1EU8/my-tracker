@@ -23,6 +23,12 @@ Implement a ready work item as a small, verified vertical slice while preserving
 
 ## Mandatory technical rules
 
+- Enforce `DESIGN.md` minimalism: do not add persistent expanded forms or rows of
+  secondary buttons when a canonical Phosphor icon plus modal can expose the
+  same action clearly.
+- Import interface icons only from the locally bundled
+  `@phosphor-icons/react` package. Every icon-only trigger requires a contextual
+  accessible name, visible focus, tooltip, and at least a 44 px hit area.
 - No browser/storage calls inside presentational components.
 - No durable state in Manifest V3 service-worker globals.
 - No direct write from unvalidated imports.
