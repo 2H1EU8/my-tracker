@@ -1,5 +1,7 @@
 export type DomainErrorCode =
   | "invalid_title"
+  | "invalid_note_body"
+  | "invalid_note_link"
   | "invalid_status"
   | "not_found"
   | "parent_mismatch"

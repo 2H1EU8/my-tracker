@@ -1,11 +1,12 @@
 ---
-version: 1.1.0
+version: 1.2.0
 name: my-tracker-design-system
-status: M1 minimal-interface refinement
+status: M2 checklist and personal-inbox contract
 description: >-
   A calm, local-first new-tab workspace with dark flat surfaces, readable UI
   typography, and small code-native pixel details. Goals appear as compact
-  pixel-pin notes; project structure remains more prominent than decoration.
+  pixel-pin notes; quick capture, personal notes, and task checklists extend the
+  same minimal interaction language without competing with project structure.
 ---
 
 # My Tracker design system
@@ -71,12 +72,18 @@ apply these rules before adding or expanding any control:
 
 ## 2. Information hierarchy
 
-The M1 hierarchy follows the product model, not visual novelty:
+The M2 hierarchy follows the product model and keeps the Home reading and focus
+order explicit:
 
 ```text
 Application shell
   Home
     My Tracker / search placeholder
+    Quick note composer
+      Optional link disclosure
+    Inbox / note count
+      Note body / updated time / optional link context
+      Edit / reorder / delete actions
     Goals / create icon
     Goal pin grid
       Goal title
@@ -91,12 +98,19 @@ Application shell
       In Progress
       Done
         Task cards
+        Native task-title detail trigger
+        Checklist progress when items exist
         Hover/focus edit and action icons
+    Task detail dialog
+      Task title / status / checklist progress
+      Checklist quick-add
+      Ordered native checkboxes
 ```
 
-At any moment, the strongest visible element is the current context: the goal
-grid on Home, the goal title on Goal detail, and task titles inside the active
-phase. Application branding and controls remain quieter.
+At any moment, the strongest visible element is the current context: Quick note
+is first and immediately operable on Home while the Goal grid retains the
+largest visual forms; the goal title leads Goal detail; task titles lead the
+active phase. Application branding and controls remain quieter.
 
 ## 3. Foundations
 
@@ -185,10 +199,13 @@ The system uses an 8 px rhythm with 4 px adjustments for compact internals.
 | `space.16` | `64px` | Wide-screen separation |
 
 - Minimum pointer target: `44px × 44px`.
-- Text input minimum height: `44px`.
+- Text input minimum height: `44px`; the quick-note textarea starts at `88px`,
+  grows to `240px`, then scrolls its own content.
 - Primary action minimum height: `44px`.
 - Content maximum width: `1440px`; outer gutter is `16px`, `24px`, or
   `32px` depending on available width.
+- Wide task-detail sheet width: `480px`; intermediate dialogs use at most
+  `640px`; every variant remains inside the current dynamic viewport.
 
 ### 3.4 Geometry and elevation
 
@@ -235,6 +252,14 @@ single overlay shadow is reserved for a layer that truly sits above content.
 - Use `Plus` for create, `PencilSimple` for rename, `DotsThree` for secondary
   task actions, `ArrowLeft` for back, `MagnifyingGlass` for search, and
   `Circle` / `PlayCircle` / `CheckCircle` for task-status choices.
+- M2 uses `LinkSimple` beside the visible `Add link` disclosure,
+  `ListChecks` beside visible checklist progress, `CaretUp` / `CaretDown` for
+  named adjacent note moves, `TrashSimple` only beside visible destructive
+  text, and `X` for the named close control on dialogs and task detail.
+- Checklist state uses a native checkbox and visible label. A Phosphor glyph
+  must not replace its checked/unchecked semantics.
+- M2 shows no filter icon or disabled reminder icon. Mixed-kind filters and
+  reminder affordances remain absent until M3 has real reminder data.
 - Destructive, error-recovery, and final confirmation actions retain visible
   text. An icon may support the label but never replaces the consequence.
 - The Goal pin motif is product geometry, not interface iconography. It remains
@@ -408,26 +433,155 @@ results. The named-action path remains authoritative and cannot be removed.
 | Saved | Same location, brief text confirmation | Must not shift layout |
 | Save failed | Adjacent error panel with Retry | Draft stays in memory |
 | Storage unavailable | Persistent blocking banner above content | Explain that changes cannot be trusted |
+| No notes | Inbox content area | Point to existing Quick note; do not duplicate create control |
 | No goals | Home content area | Explain value and offer `Create goal` |
 | No phases | Goal content area | Offer `Create phase` |
 | No tasks | Active phase/column | Offer `Create task`; empty columns remain destinations |
+| No checklist items | Task detail | Keep labeled quick-add visible and focusable |
 
 The UI must never claim `Saved` before the repository write resolves.
 
-## 6. M1 functional screens
+### 5.9 Quick-note composer
 
-### 6.1 Home — no goals
+- The composer is the first useful Home control after the skip link and shell.
+  It appears before Inbox and Goals in both visual and DOM order.
+- Use a visible `Quick note` label and a multiline plain-text textarea. The
+  placeholder is an example, never the only label. A visible hint states
+  `Control or Command + Enter to add`; Control+Enter and Meta+Enter
+  (Command+Enter) submit, while Enter alone inserts a line.
+- A visible `Add note` button provides the pointer and keyboard equivalent. It
+  may include `Plus`, but the text label remains. While the write is pending it
+  reads `Adding…`, prevents duplicate submission, and keeps the draft stable.
+- Empty, whitespace-only, or trimmed bodies above 10,000 characters show an
+  inline error connected with `aria-describedby`; the draft remains available
+  and no note is written.
+- Capture defaults to no link. `LinkSimple` plus visible `Add link` text expands
+  optional controls without moving focus or blocking unlinked submission.
+  Select `No link`, `Goal`, or `Task`; Goal reveals a labeled goal selector,
+  while Task reveals a goal selector followed by a task selector whose option
+  text includes phase and task title. Selecting a task stores only task
+  identity. Duplicate titles remain distinguishable by Goal / Phase / Task
+  context.
+- If link choices are unavailable or fail to load, explain that the note can
+  still be added without a link. Never disable the body or unlinked Add action
+  because optional context is unavailable.
+- Success clears the composer, appends the note to the inbox, focuses the new
+  note container, and announces `Note added`. Failure preserves the draft and
+  link choice, states that nothing was saved, and exposes Retry beside the
+  composer.
+
+### 5.10 Inbox and note card
+
+- M2 renders a single `Inbox` section containing the written label and a
+  tabular note count. Its item structure leaves room for a later kind/status
+  slot, but M2 renders no empty slot, fake reminder, or visible filter.
+- Empty copy is `No notes yet. Add one with Quick note.` It does not repeat a
+  second create control.
+- Notes form one ordered list. Each card shows the full plain-text body with
+  preserved line breaks, semantic updated time, and optional non-interactive
+  context text such as `Goal: Ship M2` or
+  `Task: Ship M2 / Foundation / Add storage`. Link context does not promise
+  navigation in M2.
+- Note text uses `white-space: pre-wrap` and `overflow-wrap: anywhere`; long
+  content never creates page-level horizontal scrolling. The card uses
+  `surface.1`, a one-pixel border, and no note-color treatment so Goal pins
+  remain visually distinctive.
+- `PencilSimple` opens the edit-note dialog. The dialog contains a labeled
+  textarea and the same optional-link controls as capture. Control+Enter,
+  Meta+Enter (Command+Enter), or visible `Save changes` commits; Enter alone
+  adds a line; Escape cancels when no save is pending. Failed save keeps the
+  draft and the last persisted card visible until Retry succeeds or Cancel
+  closes the dialog.
+- `DotsThree` opens named note actions. `Move before` and `Move after` use
+  `CaretUp` / `CaretDown`, visible text, and disabled reasons `Already first`
+  or `Already last`. Success restores focus to the moved note action trigger
+  and announces its new ordinal position. Failure preserves order and offers
+  Retry.
+- `Delete note` is text-labeled, visually separated, and may be supported by
+  `TrashSimple`; it opens a focused replacement confirmation dialog naming a
+  plain-text excerpt from the first non-empty line, truncated to 80 characters
+  with an ellipsis when needed. `Cancel` and `Delete note` remain visible.
+  Cancel or Escape writes nothing and returns focus to that note's DotsThree
+  trigger. Confirmed deletion has no undo. Failure leaves the note and order
+  unchanged and keeps `Retry` in the confirmation.
+- After successful deletion, focus moves to the next note's action trigger,
+  otherwise the previous note's trigger, otherwise the Quick note field. Notes
+  never disappear because of age, task status, checklist state, or future
+  reminder filtering.
+
+### 5.11 Task-detail dialog
+
+- The task title becomes a native button named
+  `Open task details for <title>`. Its visible treatment remains the task title,
+  not a new persistent icon. Pointer click, Enter, and Space produce the same
+  result without replacing the existing PencilSimple rename or DotsThree task
+  actions.
+- Use one modal `dialog` implementation with responsive presentation. At
+  `>=1200px` it is a right-aligned `480px` side sheet; from `720–1199px` it is a
+  centered dialog no wider than `640px`; below `720px` it is a viewport-contained
+  full-screen surface. The backdrop makes the board inert, and the panel owns
+  its vertical scroll so focus is never hidden behind its header or footer.
+- The header shows the task title, written current status, and an `X` control
+  named `Close task details`. M2 does not add a second title editor, status
+  picker, deadline, description, priority, or delete action; existing card
+  controls remain authoritative.
+- The task card shows `ListChecks` plus visible `completed / total` text only
+  when checklist items exist. Task detail always shows the derived progress,
+  including `0 / 0 complete` in the empty state. Progress and checkbox state
+  never imply task status.
+- On open, an empty checklist focuses its quick-add field. A populated checklist
+  focuses the dialog heading with `tabindex="-1"` so the title and context are
+  announced before item controls. Escape closes only when no save is pending;
+  close always returns focus to the exact task-title button that opened it.
+- Closing with an invalid or failed checklist draft keeps the draft available
+  if the dialog remains open. If a close would discard an unsaved draft, require
+  explicit confirmation instead of silently losing it.
+
+### 5.12 Checklist
+
+- A `Checklist` heading, visible `completed / total complete` text, labeled
+  single-line `Add checklist item` input, and visible `Add item` action precede
+  the ordered list. Enter submits; Escape follows the task-detail close policy
+  and never silently discards a non-empty draft.
+- Trim before validation. Empty, whitespace-only, or over-240-character titles
+  show inline error, retain input, and write nothing. A valid item appends,
+  starts unchecked, focuses its native checkbox, and announces the new item.
+- Each row contains one native checkbox and a visible text label. Checked rows
+  retain full readable text and add a written/assistive completed state; color
+  or strikethrough may support but never replace checkbox semantics. The label
+  and checkbox form one click target at least `44px` high.
+- A toggle disables only the pending checkbox, exposes a quiet saving state,
+  and updates progress only from the committed snapshot. Failure restores the
+  persisted checked state, retains focus on that checkbox, and presents Retry
+  adjacent to the row.
+- Checklist completion never changes the task status or `completedAt`; moving a
+  task to Done never checks an item. Checklist items never render as board
+  cards.
+- M2 exposes no checklist PencilSimple, DotsThree, drag handle, delete action,
+  or reorder control. Rename, reorder, and deletion require a later PM decision.
+
+## 6. Functional screens
+
+### 6.1 Home — no notes or goals
 
 Order:
 
-1. `Goals` heading and Plus icon.
-2. Empty message: `No goals yet.`
+1. Labeled Quick note composer and optional link disclosure.
+2. `Inbox` heading, count `0`, and `No notes yet. Add one with Quick note.`
+3. `Goals` heading and Plus icon.
+4. Empty message: `No goals yet.`
 
-The Plus icon is the first task-specific focus target and opens the create-goal
-modal. Invalid submission is reported inside the modal without clearing it.
+The Quick note textarea is the first useful focus target. It remains usable with
+no goal/task link choices. The Goals Plus opens the existing create-goal modal;
+invalid note and goal submissions remain in their own fields for correction.
 
 ### 6.2 Home — populated
 
+- Quick capture, Inbox, and Goals keep the same visual and DOM order at every
+  width. Notes append in persisted order and do not auto-sort by updated time.
+- Inbox has one plain-text ordered list with visible count, updated times,
+  optional context, PencilSimple edit, and DotsThree actions. It has no M2
+  filter, reminder row, or completed-note treatment.
 - Goal pins use `repeat(auto-fit, minmax(240px, 1fr))` with a practical maximum
   width around `360px` so a single goal does not become a banner.
 - DOM/tab order matches persisted goal order.
@@ -435,7 +589,8 @@ modal. Invalid submission is reported inside the modal without clearing it.
   the same result; no pointer-only dependency is introduced.
 - PencilSimple appears on hover/focus and opens the rename modal.
 - Opening a Goal records/restores Home scroll position when navigating back.
-- M1 has no archive/delete affordance and no decorative dashboard widgets.
+- Goal archive/delete remains absent, and Home adds no decorative dashboard
+  widget around the functional M2 surfaces.
 
 ### 6.3 Goal detail — no phases
 
@@ -457,16 +612,33 @@ modal. Invalid submission is reported inside the modal without clearing it.
 - Every task appears in exactly one status column.
 - Create/rename modal flows and the pointer/keyboard task-action modal expose
   saving/saved/failure feedback.
+- Each task title is the native trigger for task detail. Cards with checklist
+  data show visible `completed / total` progress without changing column/status
+  treatment.
 - Cross-status moves append to the destination column deterministically.
 - Reopening New Tab renders the persisted goal, phase, task, status, and order
   without celebratory or onboarding interruption.
 
-### 6.6 Local storage failure
+### 6.6 Task detail — empty and populated checklist
 
-- Keep the unsaved field/task state in memory.
+- Empty detail shows task title, current written status, `0 / 0 complete`, the
+  labeled Add checklist item field, and `No checklist items yet. Add the first
+  step.` The quick-add field receives initial focus.
+- Populated detail shows committed progress and one native checkbox/label row
+  per persisted item in position order. Opening focuses the detail heading;
+  successful creation focuses the new checkbox.
+- Toggle progress changes only after the item write commits. A failed create or
+  toggle keeps the persisted list trustworthy, retains the draft/focus context,
+  and presents Retry in the same panel.
+- Closing and reopening the New Tab restores item order/state and recomputes
+  progress without changing task status.
+
+### 6.7 Local storage failure
+
+- Keep unsaved goal/task/note/checklist draft state in memory.
 - Show a persistent page-level `Changes are not saved` banner and an adjacent
   error at the failed edit.
-- Offer `Retry`. Do not offer export in M1 because backup export is not yet
+- Offer `Retry`. Do not offer export in M2 because backup export is not yet
   implemented.
 - Navigation away from an unsaved edit requires an explicit warning if it would
   discard the draft.
@@ -476,26 +648,36 @@ modal. Invalid submission is reported inside the modal without clearing it.
 Breakpoints are implementation starting points and must be adjusted through
 content stress tests, not device-name assumptions.
 
-| Range | Home | Goal board |
-| --- | --- | --- |
-| `>= 1200px` | 3–5 goal pins depending on width | Three columns share available width; minimum `280px` each |
-| `720px–1199px` | 2–3 goal pins | Three-column board scrolls horizontally when needed |
-| `< 720px` | One goal pin per row | Horizontal board with sticky column headings; no page-level horizontal overflow outside board |
+| Range | Home | Goal board | Task detail |
+| --- | --- | --- | --- |
+| `>= 1200px` | Composer and one-column Inbox precede 3–5 goal pins | Three columns share available width; minimum `280px` each | Right-aligned `480px` modal side sheet |
+| `720px–1199px` | Same order; 2–3 goal pins | Three-column board scrolls horizontally when needed | Centered modal, max `640px` and viewport-contained |
+| `< 720px` | Same order; one goal pin per row | Horizontal board with sticky column headings; no page-level horizontal overflow outside board | Full dynamic-viewport dialog/page with internal vertical scroll |
 
 - The phase rail and board are separate horizontal scroll regions with visible
   edges/labels; nested scrolling must not hide the active phase.
+- Quick capture and Inbox use document flow, not a nested vertical scroller.
+  Note order, line breaks, and full text remain readable; `overflow-wrap:
+  anywhere` contains long tokens.
 - On narrow widths, create/edit dialogs stay within the viewport and task-action
   options collapse without horizontal overflow.
+- The task-detail header remains visible without covering focused controls; its
+  content padding reserves space for any sticky header/footer. Closing the panel
+  restores the board scroll position and exact task-title trigger.
 - Goal title and actions wrap into two rows before controls shrink below `44px`.
-- At `200%` zoom, core M1 actions remain reachable and text does not overlap.
+- At `200%` zoom, quick capture, note edit/reorder/delete, task detail,
+  checklist add/toggle, and all M1 actions remain reachable without overlap or
+  page-level horizontal scrolling.
 
 ## 8. Keyboard, focus, and announcements
 
 ### Page entry
 
 - A skip link moves focus to main content.
-- Home focus order begins with `Create goal`; Goal detail begins with `Back to
-  goals`, then goal title/action, phase rail, and board.
+- Home focus order begins with Quick note, its Add note/link controls, Inbox
+  notes/actions in persisted order, then Create goal and Goal pins. Goal detail
+  begins with `Back to goals`, then goal title/action, phase rail, board, and
+  card controls in visual order.
 - No element receives surprise programmatic focus after hydration.
 
 ### Editing
@@ -507,6 +689,23 @@ content stress tests, not device-name assumptions.
 - Successful creation focuses the created entity or its title control.
 - Failed creation keeps focus in the invalid/failed field and connects error text
   through `aria-describedby`.
+- In Quick note and note edit, Enter inserts a line; Control/Command + Enter
+  commits (`Meta+Enter` is Command+Enter on macOS). Add note/Save changes provide
+  the same visible action. Checklist quick-add is single-line and Enter commits.
+- Optional link disclosure receives focus only when the user opens it. Changing,
+  removing, or failing to load a link never traps focus or disables unlinked
+  capture.
+
+### Task detail and checklist
+
+- Pointer click, Enter, or Space on a task-title button opens detail. Empty
+  detail focuses quick-add; populated detail focuses its heading.
+- Tab stays inside the modal detail. A successful checklist create focuses the
+  new native checkbox; a failed create keeps focus in the input; a failed toggle
+  returns focus to the same checkbox after restoring its persisted state.
+- Escape closes a clean, idle detail and returns focus to the exact task-title
+  button. Saving blocks dismissal; a non-empty unsaved draft requires explicit
+  discard confirmation.
 
 ### Moving
 
@@ -517,6 +716,9 @@ content stress tests, not device-name assumptions.
 - Do not use unmodified arrow keys to move tasks while they are reading/navigation
   keys. If a future direct reorder mode is added, it must be explicitly entered
   and announced.
+- Note reorder uses only named `Move before` and `Move after` buttons in its
+  action dialog. Success returns focus to that note's DotsThree trigger; no
+  unmodified arrow-key or drag gesture changes note order.
 
 ### Focus appearance
 
@@ -528,13 +730,16 @@ content stress tests, not device-name assumptions.
 
 ### Live regions
 
-- Use one polite region for create, rename, save, and move success.
+- Use one polite region for create, rename, save, move, note, and checklist
+  success.
 - Use an assertive region only when a failed save risks data loss.
+- Checkbox state is already announced by its native control; announce the
+  committed result/progress once, not on both click and snapshot refresh.
 - Do not announce skeleton rows, every hover, or repeated `Saved` messages.
 
 ## 9. Required state matrix
 
-Every M1 component review must cover the following where applicable:
+Every M2 component review must cover the following where applicable:
 
 | Category | States |
 | --- | --- |
@@ -543,12 +748,15 @@ Every M1 component review must cover the following where applicable:
 | Edit | pristine, dirty, invalid, saving, saved, save failed, retrying |
 | Navigation | inactive, current, returning with restored focus/scroll |
 | Move | available, invalid, moving, moved, move failed |
+| Note | no link, goal link, task link, editing, reordered, delete confirming, delete failed |
+| Checklist | empty, populated, unchecked, checked, creating, toggling, failed, retrying |
+| Detail | closed, opening, wide sheet, narrow/full-screen, clean, unsaved draft, closing |
 | Storage | available, write pending, write failed, unavailable/quota exceeded |
 | Motion | default, reduced motion |
 
-Archived, overdue, fired reminder, import, backup, restore, checklist, and deadline
-states remain documented in `docs/UX_SPEC.md` for later milestones but are not M1
-implementation claims.
+Archived, overdue, fired reminder, visible inbox-filter, import, backup, restore,
+deadline, and checklist rename/reorder/delete states remain deferred and are not
+M2 implementation claims.
 
 ## 10. Accessibility acceptance
 
@@ -556,7 +764,12 @@ implementation claims.
 - Status, current phase, selection, and errors have non-color cues.
 - All core actions are keyboard operable with a logical focus order.
 - Touch/pointer targets are at least `44px × 44px` or have equivalent hit area.
-- Zoom to `200%` does not hide create, rename, move, retry, or navigation actions.
+- Zoom to `200%` does not hide note capture/edit/reorder/delete, task-detail,
+  checklist add/toggle, or retained M1 actions.
+- Native checkboxes expose checked state; checklist progress and note links use
+  written context and do not rely on icon/color alone.
+- Modal task detail and note dialogs keep focus inside, keep focused controls
+  unobscured, and restore a stable trigger on close.
 - Reduced motion removes nonessential transition and any decorative transform.
 - Goal/task titles remain text, never rasterized pixel art.
 - Timestamps use semantic `time` elements with machine-readable values and clear
@@ -575,19 +788,23 @@ implementation claims.
 Examples:
 
 - Empty: `No goals yet. Create one to start planning.`
+- Empty inbox: `No notes yet. Add one with Quick note.`
+- Empty checklist: `No checklist items yet. Add the first step.`
 - Saving: `Saving on this device…`
 - Saved: `Saved on this device.`
 - Validation: `Enter a goal title.`
+- Note validation: `Enter a note.` / `Keep the note at 10,000 characters or fewer.`
+- Checklist validation: `Enter a checklist item.`
+- Delete: `Delete this note? This cannot be undone.`
 - Failure: `This change was not saved. Your draft is still here.`
 
-## 12. M1 handoff and deferred polish
+## 12. M2 handoff and deferred polish
 
-M1 implementation should consume the semantic tokens and interaction contracts
-above while keeping visual implementation deliberately light. The required M1
-design outcome is a coherent, accessible functional shell—not final art
-direction.
+M2 extends the completed M1 shell without redesigning it. Implementation should
+consume the semantic tokens and interaction contracts above while keeping visual
+work deliberately functional; final hardening remains M6.
 
-Required in M1:
+Retained from M1:
 
 - Dark flat shell and readable typography.
 - Original code-native Goal pixel pin.
@@ -599,11 +816,29 @@ Required in M1:
 - Focus, announcements, reduced-motion baseline, and responsive fallback.
 - Cross-status append and within-column before/after behavior.
 
+Required in M2:
+
+- Quick note first in Home order, multiline keyboard capture, optional
+  progressively disclosed goal/task link, and no-link fallback.
+- Plain-text Inbox with count, empty/populated states, stable appended order,
+  timestamps, optional context, edit, named adjacent reorder, and confirmed
+  deletion without undo.
+- Native task-title detail trigger plus responsive modal side-sheet/full-screen
+  presentation and exact focus restoration.
+- Checklist progress, single-line quick-add, native check/uncheck, append order,
+  failure rollback/retry, and independence from task status.
+- Loading, invalid, saving, saved, failed, retry, delete-confirmation, empty,
+  narrow, 200% zoom, keyboard-only, and reduced-motion states.
+- No visible filter, reminder, deadline, task-description/priority, or fake data
+  affordance.
+
 Deferred:
 
 - Final visual polish and stress tuning (M6).
 - Drag-and-drop, goal/phase reordering UI, archive, and permanent deletion policy.
-- Notes, reminders, deadlines, checklist, import, backup, and restore surfaces.
+- Reminders, mixed-kind inbox filters, fired/overdue states, deadlines,
+  checklist rename/reorder/delete, note conversion, search, import, backup, and
+  restore surfaces.
 - Additional note-color controls, decorative variations, and richer transitions.
 
 Future work may refine tokens after implementation evidence, but it must preserve

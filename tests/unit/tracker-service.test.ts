@@ -153,4 +153,158 @@ describe("TrackerService", () => {
 
     expect(await service.getWorkspace()).toEqual(before);
   });
+
+  it("creates, edits, and unlinks ordered notes through a filter-ready inbox", async () => {
+    const { service } = createTrackerServiceFixture();
+    const goal = await service.createGoal("Goal");
+    const phase = await service.createPhase(goal.id, "Phase");
+    const task = await service.createTask(goal.id, phase.id, "Task");
+
+    const unlinked = await service.createNote("  First note  ");
+    const linkedToGoal = await service.createNote("Goal context", {
+      kind: "goal",
+      goalId: goal.id,
+    });
+    const linkedToTask = await service.createNote("Task context", {
+      kind: "task",
+      taskId: task.id,
+    });
+
+    expect(unlinked).toMatchObject({ body: "First note", position: 0 });
+    expect("linkedGoalId" in unlinked).toBe(false);
+    expect("linkedTaskId" in unlinked).toBe(false);
+    expect(linkedToGoal).toMatchObject({ linkedGoalId: goal.id, position: 1 });
+    expect(linkedToTask).toMatchObject({ linkedTaskId: task.id, position: 2 });
+
+    const edited = await service.editNote(linkedToGoal.id, " Updated context ", {
+      kind: "task",
+      taskId: task.id,
+    });
+    expect(edited).toMatchObject({
+      body: "Updated context",
+      linkedTaskId: task.id,
+      position: linkedToGoal.position,
+      createdAt: linkedToGoal.createdAt,
+    });
+    expect("linkedGoalId" in edited).toBe(false);
+
+    const unlinkedAgain = await service.editNote(edited.id, edited.body, {
+      kind: "none",
+    });
+    expect("linkedGoalId" in unlinkedAgain).toBe(false);
+    expect("linkedTaskId" in unlinkedAgain).toBe(false);
+    expect((await service.getInbox()).items.map(({ kind }) => kind)).toEqual([
+      "note",
+      "note",
+      "note",
+    ]);
+  });
+
+  it("rejects invalid note bodies and links without writing", async () => {
+    const { service } = createTrackerServiceFixture();
+
+    await expect(service.createNote(" \n ")).rejects.toMatchObject({
+      code: "invalid_note_body",
+    });
+    await expect(
+      service.createNote("Missing goal", { kind: "goal", goalId: "missing" }),
+    ).rejects.toMatchObject({ code: "not_found" });
+    await expect(
+      service.createNote("Two links", {
+        kind: "goal",
+        goalId: "goal-1",
+        taskId: "task-1",
+      } as never),
+    ).rejects.toMatchObject({ code: "invalid_note_link" });
+
+    expect((await service.getInbox()).items).toEqual([]);
+  });
+
+  it("reorders and deletes notes with contiguous positions", async () => {
+    const { service } = createTrackerServiceFixture();
+    const first = await service.createNote("First");
+    const second = await service.createNote("Second");
+    const third = await service.createNote("Third");
+
+    await service.reorderNote(third.id, first.id, "before");
+    expect(
+      (await service.getInbox()).items.map(({ note }) => [note.body, note.position]),
+    ).toEqual([
+      ["Third", 0],
+      ["First", 1],
+      ["Second", 2],
+    ]);
+
+    await service.deleteNote(first.id);
+    expect(
+      (await service.getInbox()).items.map(({ note }) => [note.body, note.position]),
+    ).toEqual([
+      ["Third", 0],
+      ["Second", 1],
+    ]);
+    await expect(service.reorderNote(second.id, "missing", "after")).rejects.toMatchObject(
+      { code: "not_found" },
+    );
+    expect((await service.getInbox()).items.map(({ note }) => note.id)).toEqual([
+      third.id,
+      second.id,
+    ]);
+  });
+
+  it("creates and toggles checklist items without mutating task state", async () => {
+    const { service } = createTrackerServiceFixture();
+    const goal = await service.createGoal("Goal");
+    const phase = await service.createPhase(goal.id, "Phase");
+    const task = await service.createTask(goal.id, phase.id, "Task");
+    const first = await service.createChecklistItem(task.id, " First step ");
+    const second = await service.createChecklistItem(task.id, "Second step");
+
+    expect(first).toMatchObject({
+      taskId: task.id,
+      title: "First step",
+      isCompleted: false,
+      position: 0,
+    });
+    expect(second.position).toBe(1);
+
+    const completed = await service.setChecklistItemCompleted(task.id, first.id, true);
+    const afterToggle = await service.getTaskChecklist(task.id);
+    expect(completed).toMatchObject({ isCompleted: true, taskId: task.id });
+    expect(afterToggle.task).toEqual(task);
+    expect(afterToggle.checklistItems.map((item) => item.isCompleted)).toEqual([
+      true,
+      false,
+    ]);
+
+    await service.moveTaskToStatus(task.id, "done");
+    const afterTaskDone = await service.getTaskChecklist(task.id);
+    expect(afterTaskDone.task.status).toBe("done");
+    expect(afterTaskDone.checklistItems.map((item) => item.isCompleted)).toEqual([
+      true,
+      false,
+    ]);
+  });
+
+  it("rejects checklist parent mismatches and missing parents without writes", async () => {
+    const { service } = createTrackerServiceFixture();
+    const goal = await service.createGoal("Goal");
+    const phase = await service.createPhase(goal.id, "Phase");
+    const firstTask = await service.createTask(goal.id, phase.id, "First task");
+    const secondTask = await service.createTask(goal.id, phase.id, "Second task");
+    const item = await service.createChecklistItem(firstTask.id, "Step");
+
+    await expect(
+      service.setChecklistItemCompleted(secondTask.id, item.id, true),
+    ).rejects.toMatchObject({ code: "parent_mismatch" });
+    await expect(service.createChecklistItem("missing", "Step")).rejects.toMatchObject({
+      code: "not_found",
+    });
+    await expect(
+      service.setChecklistItemCompleted(firstTask.id, "missing", true),
+    ).rejects.toMatchObject({ code: "not_found" });
+
+    expect((await service.getTaskChecklist(firstTask.id)).checklistItems).toEqual([
+      item,
+    ]);
+  });
 });

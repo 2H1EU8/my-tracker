@@ -32,6 +32,45 @@ export interface Phase {
   updatedAt: UtcTimestamp;
 }
 
+export interface ChecklistItem {
+  id: EntityId;
+  taskId: EntityId;
+  title: string;
+  isCompleted: boolean;
+  position: number;
+  createdAt: UtcTimestamp;
+  updatedAt: UtcTimestamp;
+}
+
+export type NoteLinkTarget =
+  | { kind: "none" }
+  | { kind: "goal"; goalId: EntityId }
+  | { kind: "task"; taskId: EntityId };
+
+export interface NoteBase {
+  id: EntityId;
+  body: string;
+  position: number;
+  createdAt: UtcTimestamp;
+  updatedAt: UtcTimestamp;
+}
+
+export type Note = NoteBase &
+  (
+    | {
+        linkedGoalId?: never;
+        linkedTaskId?: never;
+      }
+    | {
+        linkedGoalId: EntityId;
+        linkedTaskId?: never;
+      }
+    | {
+        linkedGoalId?: never;
+        linkedTaskId: EntityId;
+      }
+  );
+
 interface TaskBase {
   id: EntityId;
   goalId: EntityId;
@@ -79,6 +118,22 @@ export interface GoalTree {
 
 export interface WorkspaceSnapshot {
   goals: GoalTree[];
+}
+
+export interface NoteInboxItem {
+  kind: "note";
+  note: Note;
+}
+
+export type InboxItem = NoteInboxItem;
+
+export interface InboxSnapshot {
+  items: InboxItem[];
+}
+
+export interface TaskChecklistSnapshot {
+  task: Task;
+  checklistItems: ChecklistItem[];
 }
 
 export function isTaskStatus(value: string): value is TaskStatus {

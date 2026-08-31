@@ -1,5 +1,7 @@
 import type {
+  ChecklistItemRepository,
   GoalRepository,
+  NoteRepository,
   PhaseRepository,
   StoreName,
   TaskRepository,
@@ -7,16 +9,20 @@ import type {
   TrackerRepositories,
   TransactionMode,
 } from "../../application/ports";
-import type { Goal, Phase, Task } from "../../domain/model";
+import type { ChecklistItem, Goal, Note, Phase, Task } from "../../domain/model";
 import { sortByPosition } from "../../domain/rules";
 
 export const TRACKER_DATABASE_NAME = "my-tracker";
-export const TRACKER_DATABASE_VERSION = 1;
+export const TRACKER_DATABASE_VERSION = 2;
 
 const INDEX_GOAL_POSITION = "by-position";
 const INDEX_PHASE_GOAL_POSITION = "by-goal-position";
 const INDEX_TASK_PHASE_POSITION = "by-phase-position";
 const INDEX_TASK_PHASE_STATUS_POSITION = "by-phase-status-position";
+const INDEX_CHECKLIST_TASK_POSITION = "by-task-position";
+const INDEX_NOTE_POSITION = "by-position";
+const INDEX_NOTE_LINKED_GOAL_POSITION = "by-linked-goal-position";
+const INDEX_NOTE_LINKED_TASK_POSITION = "by-linked-task-position";
 
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -72,6 +78,34 @@ function openDatabase(factory: IDBFactory, name: string): Promise<IDBDatabase> {
         tasks.createIndex(
           INDEX_TASK_PHASE_STATUS_POSITION,
           ["phaseId", "status", "position", "id"],
+          { unique: true },
+        );
+      }
+
+      if (!database.objectStoreNames.contains("checklistItems")) {
+        const checklistItems = database.createObjectStore("checklistItems", {
+          keyPath: "id",
+        });
+        checklistItems.createIndex(
+          INDEX_CHECKLIST_TASK_POSITION,
+          ["taskId", "position", "id"],
+          { unique: true },
+        );
+      }
+
+      if (!database.objectStoreNames.contains("notes")) {
+        const notes = database.createObjectStore("notes", { keyPath: "id" });
+        notes.createIndex(INDEX_NOTE_POSITION, ["position", "id"], {
+          unique: true,
+        });
+        notes.createIndex(
+          INDEX_NOTE_LINKED_GOAL_POSITION,
+          ["linkedGoalId", "position", "id"],
+          { unique: true },
+        );
+        notes.createIndex(
+          INDEX_NOTE_LINKED_TASK_POSITION,
+          ["linkedTaskId", "position", "id"],
           { unique: true },
         );
       }
@@ -196,11 +230,91 @@ class IndexedDbTaskRepository implements TaskRepository {
   }
 }
 
+class IndexedDbChecklistItemRepository implements ChecklistItemRepository {
+  constructor(private readonly transaction: IDBTransaction) {}
+
+  private get store(): IDBObjectStore {
+    return this.transaction.objectStore("checklistItems");
+  }
+
+  get(id: string): Promise<ChecklistItem | undefined> {
+    return requestResult(
+      this.store.get(id) as IDBRequest<ChecklistItem | undefined>,
+    );
+  }
+
+  async list(): Promise<ChecklistItem[]> {
+    const checklistItems = await requestResult(
+      this.store.getAll() as IDBRequest<ChecklistItem[]>,
+    );
+    return checklistItems.sort(
+      (left, right) =>
+        left.taskId.localeCompare(right.taskId) ||
+        left.position - right.position ||
+        left.id.localeCompare(right.id),
+    );
+  }
+
+  async listByTask(taskId: string): Promise<ChecklistItem[]> {
+    const index = this.store.index(INDEX_CHECKLIST_TASK_POSITION);
+    const range = IDBKeyRange.bound(
+      [taskId, 0, ""],
+      [taskId, Number.MAX_SAFE_INTEGER, "\uffff"],
+    );
+    return requestResult(index.getAll(range) as IDBRequest<ChecklistItem[]>);
+  }
+
+  async put(checklistItem: ChecklistItem): Promise<void> {
+    await requestResult(this.store.put(checklistItem));
+  }
+
+  async putMany(checklistItems: readonly ChecklistItem[]): Promise<void> {
+    await Promise.all(
+      checklistItems.map((checklistItem) =>
+        requestResult(this.store.put(checklistItem)),
+      ),
+    );
+  }
+}
+
+class IndexedDbNoteRepository implements NoteRepository {
+  constructor(private readonly transaction: IDBTransaction) {}
+
+  private get store(): IDBObjectStore {
+    return this.transaction.objectStore("notes");
+  }
+
+  get(id: string): Promise<Note | undefined> {
+    return requestResult(this.store.get(id) as IDBRequest<Note | undefined>);
+  }
+
+  async list(): Promise<Note[]> {
+    const notes = await requestResult(
+      this.store.index(INDEX_NOTE_POSITION).getAll() as IDBRequest<Note[]>,
+    );
+    return sortByPosition(notes);
+  }
+
+  async put(note: Note): Promise<void> {
+    await requestResult(this.store.put(note));
+  }
+
+  async putMany(notes: readonly Note[]): Promise<void> {
+    await Promise.all(notes.map((note) => requestResult(this.store.put(note))));
+  }
+
+  async delete(id: string): Promise<void> {
+    await requestResult(this.store.delete(id));
+  }
+}
+
 function repositoriesFor(transaction: IDBTransaction): TrackerRepositories {
   return {
     goals: new IndexedDbGoalRepository(transaction),
     phases: new IndexedDbPhaseRepository(transaction),
     tasks: new IndexedDbTaskRepository(transaction),
+    checklistItems: new IndexedDbChecklistItemRepository(transaction),
+    notes: new IndexedDbNoteRepository(transaction),
   };
 }
 

@@ -7,10 +7,72 @@ import type {
   TrackerRepositories,
   TransactionMode,
 } from "../../src/application/ports";
+import type { Goal, Phase, Task } from "../../src/domain/model";
 import { FailNextWriteDatabase } from "../../src/infrastructure/db/fail-next-write-database";
 import { IndexedDbTrackerDatabase } from "../../src/infrastructure/db/indexeddb-tracker-database";
 
 let databaseSequence = 0;
+
+function requestCompletion(request: IDBRequest): Promise<void> {
+  return new Promise((resolve, reject) => {
+    request.addEventListener("success", () => resolve(), { once: true });
+    request.addEventListener(
+      "error",
+      () => reject(request.error ?? new Error("IndexedDB request failed.")),
+      { once: true },
+    );
+  });
+}
+
+function transactionCompletion(transaction: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    transaction.addEventListener("complete", () => resolve(), { once: true });
+    transaction.addEventListener(
+      "abort",
+      () => reject(transaction.error ?? new Error("IndexedDB transaction aborted.")),
+      { once: true },
+    );
+    transaction.addEventListener(
+      "error",
+      () => reject(transaction.error ?? new Error("IndexedDB transaction failed.")),
+      { once: true },
+    );
+  });
+}
+
+async function seedVersionOneDatabase(
+  name: string,
+  records: { goal: Goal; phase: Phase; task: Task },
+): Promise<void> {
+  const openRequest = indexedDB.open(name, 1);
+  openRequest.addEventListener("upgradeneeded", () => {
+    const database = openRequest.result;
+    const goals = database.createObjectStore("goals", { keyPath: "id" });
+    goals.createIndex("by-position", ["position", "id"], { unique: true });
+    const phases = database.createObjectStore("phases", { keyPath: "id" });
+    phases.createIndex("by-goal-position", ["goalId", "position", "id"], {
+      unique: true,
+    });
+    const tasks = database.createObjectStore("tasks", { keyPath: "id" });
+    tasks.createIndex("by-phase-position", ["phaseId", "position", "id"], {
+      unique: false,
+    });
+    tasks.createIndex(
+      "by-phase-status-position",
+      ["phaseId", "status", "position", "id"],
+      { unique: true },
+    );
+  });
+  await requestCompletion(openRequest);
+
+  const database = openRequest.result;
+  const transaction = database.transaction(["goals", "phases", "tasks"], "readwrite");
+  transaction.objectStore("goals").put(records.goal);
+  transaction.objectStore("phases").put(records.phase);
+  transaction.objectStore("tasks").put(records.task);
+  await transactionCompletion(transaction);
+  database.close();
+}
 
 function createFixture(databaseName?: string) {
   const database = new IndexedDbTrackerDatabase(
@@ -66,6 +128,118 @@ describe("IndexedDbTrackerDatabase", () => {
       [third.id, 0],
       [second.id, 1],
     ]);
+    await reopened.database.close();
+  });
+
+  it("persists note links, note order, and checklist state after reopen", async () => {
+    const name = `my-tracker-m2-reopen-${databaseSequence}`;
+    const first = createFixture(name);
+    const goal = await first.service.createGoal("Durable goal");
+    const phase = await first.service.createPhase(goal.id, "M2");
+    const task = await first.service.createTask(goal.id, phase.id, "Persist M2 data");
+    const firstNote = await first.service.createNote("First note", {
+      kind: "goal",
+      goalId: goal.id,
+    });
+    const secondNote = await first.service.createNote("Second note", {
+      kind: "task",
+      taskId: task.id,
+    });
+    await first.service.reorderNote(secondNote.id, firstNote.id, "before");
+    const checklistItem = await first.service.createChecklistItem(
+      task.id,
+      "Persist checklist state",
+    );
+    await first.service.setChecklistItemCompleted(task.id, checklistItem.id, true);
+    await first.database.close();
+
+    const reopened = createFixture(name);
+    expect((await reopened.service.getInbox()).items.map(({ note }) => note)).toEqual([
+      expect.objectContaining({
+        id: secondNote.id,
+        linkedTaskId: task.id,
+        position: 0,
+      }),
+      expect.objectContaining({
+        id: firstNote.id,
+        linkedGoalId: goal.id,
+        position: 1,
+      }),
+    ]);
+    expect((await reopened.service.getTaskChecklist(task.id)).checklistItems).toEqual([
+      expect.objectContaining({
+        id: checklistItem.id,
+        taskId: task.id,
+        isCompleted: true,
+        position: 0,
+      }),
+    ]);
+    await reopened.database.close();
+  });
+
+  it("upgrades a populated v1 database to v2 without changing M1 records", async () => {
+    const name = `my-tracker-v1-upgrade-${databaseSequence}`;
+    const goal: Goal = {
+      id: "v1-goal",
+      title: "Existing goal",
+      status: "active",
+      position: 0,
+      createdAt: "2026-08-28T07:00:00.000Z",
+      updatedAt: "2026-08-28T07:00:00.000Z",
+    };
+    const phase: Phase = {
+      id: "v1-phase",
+      goalId: goal.id,
+      title: "Existing phase",
+      position: 0,
+      createdAt: "2026-08-28T07:01:00.000Z",
+      updatedAt: "2026-08-28T07:01:00.000Z",
+    };
+    const task: Task = {
+      id: "v1-task",
+      goalId: goal.id,
+      phaseId: phase.id,
+      title: "Existing completed task",
+      status: "done",
+      priority: "high",
+      position: 0,
+      notifyAtDue: true,
+      completedAt: "2026-08-28T07:03:00.000Z",
+      createdAt: "2026-08-28T07:02:00.000Z",
+      updatedAt: "2026-08-28T07:03:00.000Z",
+    };
+    await seedVersionOneDatabase(name, { goal, phase, task });
+
+    const upgraded = createFixture(name);
+    expect(await upgraded.service.getWorkspace()).toEqual({
+      goals: [
+        {
+          goal,
+          phases: [{ phase, tasks: [task] }],
+        },
+      ],
+    });
+    expect((await upgraded.service.getInbox()).items).toEqual([]);
+    expect((await upgraded.service.getTaskChecklist(task.id)).checklistItems).toEqual([]);
+
+    const note = await upgraded.service.createNote("Created after upgrade", {
+      kind: "task",
+      taskId: task.id,
+    });
+    const checklistItem = await upgraded.service.createChecklistItem(
+      task.id,
+      "Created after upgrade",
+    );
+    await upgraded.database.close();
+
+    const reopened = createFixture(name);
+    expect((await reopened.service.getWorkspace()).goals[0]?.phases[0]?.tasks[0]).toEqual(
+      task,
+    );
+    expect((await reopened.service.getInbox()).items[0]?.note).toEqual(note);
+    expect((await reopened.service.getTaskChecklist(task.id)).checklistItems[0]).toEqual(
+      checklistItem,
+    );
     await reopened.database.close();
   });
 
@@ -155,6 +329,8 @@ describe("IndexedDbTrackerDatabase", () => {
           operation({
             goals: repositories.goals,
             phases: repositories.phases,
+            checklistItems: repositories.checklistItems,
+            notes: repositories.notes,
             tasks: {
               get: (id) => repositories.tasks.get(id),
               list: () => repositories.tasks.list(),
@@ -184,6 +360,100 @@ describe("IndexedDbTrackerDatabase", () => {
 
     const reopened = createFixture(name);
     expect(await reopened.service.getWorkspace()).toEqual(before);
+    await reopened.database.close();
+  });
+
+  it("rolls back note reorder after a partial IndexedDB normalization write", async () => {
+    const name = `my-tracker-note-reorder-rollback-${databaseSequence}`;
+    const fixture = createFixture(name);
+    const first = await fixture.service.createNote("First");
+    await fixture.service.createNote("Second");
+    const third = await fixture.service.createNote("Third");
+    const before = await fixture.service.getInbox();
+
+    const failAfterOneNoteWrite: TrackerDatabase = {
+      transaction<T>(
+        stores: readonly StoreName[],
+        mode: TransactionMode,
+        operation: (repositories: TrackerRepositories) => Promise<T>,
+      ): Promise<T> {
+        return fixture.database.transaction(stores, mode, (repositories) =>
+          operation({
+            ...repositories,
+            notes: {
+              get: (id) => repositories.notes.get(id),
+              list: () => repositories.notes.list(),
+              put: (note) => repositories.notes.put(note),
+              delete: (id) => repositories.notes.delete(id),
+              putMany: async (notes) => {
+                const firstWrite = notes[0];
+                if (firstWrite !== undefined) {
+                  await repositories.notes.put(firstWrite);
+                }
+                throw new Error("Simulated failure after one note write.");
+              },
+            },
+          }),
+        );
+      },
+    };
+    const failingService = new TrackerService(failAfterOneNoteWrite, {
+      createId: () => "unused-id",
+      clock: () => "2026-08-28T14:00:00.000Z",
+    });
+
+    await expect(failingService.reorderNote(third.id, first.id, "before")).rejects.toThrow(
+      "after one note write",
+    );
+    await fixture.database.close();
+
+    const reopened = createFixture(name);
+    expect(await reopened.service.getInbox()).toEqual(before);
+    await reopened.database.close();
+  });
+
+  it("rolls back note deletion and position normalization together", async () => {
+    const name = `my-tracker-note-delete-rollback-${databaseSequence}`;
+    const fixture = createFixture(name);
+    const first = await fixture.service.createNote("First");
+    await fixture.service.createNote("Second");
+    await fixture.service.createNote("Third");
+    const before = await fixture.service.getInbox();
+
+    const failAfterDelete: TrackerDatabase = {
+      transaction<T>(
+        stores: readonly StoreName[],
+        mode: TransactionMode,
+        operation: (repositories: TrackerRepositories) => Promise<T>,
+      ): Promise<T> {
+        return fixture.database.transaction(stores, mode, (repositories) =>
+          operation({
+            ...repositories,
+            notes: {
+              get: (id) => repositories.notes.get(id),
+              list: () => repositories.notes.list(),
+              put: (note) => repositories.notes.put(note),
+              delete: (id) => repositories.notes.delete(id),
+              putMany: async () => {
+                throw new Error("Simulated failure after note deletion.");
+              },
+            },
+          }),
+        );
+      },
+    };
+    const failingService = new TrackerService(failAfterDelete, {
+      createId: () => "unused-id",
+      clock: () => "2026-08-28T15:00:00.000Z",
+    });
+
+    await expect(failingService.deleteNote(first.id)).rejects.toThrow(
+      "after note deletion",
+    );
+    await fixture.database.close();
+
+    const reopened = createFixture(name);
+    expect(await reopened.service.getInbox()).toEqual(before);
     await reopened.database.close();
   });
 });

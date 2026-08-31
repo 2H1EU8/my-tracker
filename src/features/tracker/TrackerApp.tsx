@@ -5,10 +5,13 @@ import {
   CheckCircleIcon,
   CircleIcon,
   DotsThreeIcon,
+  LinkSimpleIcon,
+  ListChecksIcon,
   MagnifyingGlassIcon,
   PencilSimpleIcon,
   PlayCircleIcon,
   PlusIcon,
+  TrashSimpleIcon,
   XIcon,
 } from "@phosphor-icons/react";
 import {
@@ -26,8 +29,12 @@ import type { ReorderPlacement, TrackerService } from "../../application/tracker
 import { DomainError } from "../../domain/errors";
 import {
   TASK_STATUSES,
+  type ChecklistItem,
   type Goal,
   type GoalTree,
+  type InboxSnapshot,
+  type Note,
+  type NoteLinkTarget,
   type Phase,
   type PhaseTree,
   type Task,
@@ -46,7 +53,18 @@ interface RetryOperation {
   action: () => Promise<unknown>;
   successMessage: string | ((result: unknown) => string);
   getFocusSelector: (() => string | undefined) | undefined;
+  refresh: () => Promise<void>;
 }
+
+type LinkDraft =
+  | { kind: "none" }
+  | { kind: "goal"; goalId: string }
+  | { kind: "task"; goalId: string; taskId: string };
+
+type ChecklistLoadState =
+  | { status: "loading" }
+  | { status: "loaded"; items: ChecklistItem[] }
+  | { status: "failed"; error: string };
 
 interface EntityDialogProps {
   dialogTitle: string;
@@ -66,6 +84,241 @@ function getErrorMessage(error: unknown): string {
     return error.message;
   }
   return "This change was not saved. Your draft is still here.";
+}
+
+interface TaskContext {
+  goal: Goal;
+  phase: Phase;
+  task: Task;
+}
+
+function findTaskContext(
+  goals: readonly GoalTree[] | undefined,
+  taskId: string,
+): TaskContext | undefined {
+  if (goals === undefined) {
+    return undefined;
+  }
+
+  for (const goalTree of goals) {
+    for (const phaseTree of goalTree.phases) {
+      const task = phaseTree.tasks.find((candidate) => candidate.id === taskId);
+      if (task !== undefined) {
+        return { goal: goalTree.goal, phase: phaseTree.phase, task };
+      }
+    }
+  }
+  return undefined;
+}
+
+function linkDraftForNote(
+  note: Note,
+  goals: readonly GoalTree[] | undefined,
+): LinkDraft {
+  if (note.linkedGoalId !== undefined) {
+    return { kind: "goal", goalId: note.linkedGoalId };
+  }
+  if (note.linkedTaskId !== undefined) {
+    return {
+      kind: "task",
+      goalId: findTaskContext(goals, note.linkedTaskId)?.goal.id ?? "",
+      taskId: note.linkedTaskId,
+    };
+  }
+  return { kind: "none" };
+}
+
+function linkTargetForDraft(draft: LinkDraft): NoteLinkTarget {
+  if (draft.kind === "none") {
+    return draft;
+  }
+  if (draft.kind === "goal" && draft.goalId !== "") {
+    return { kind: "goal", goalId: draft.goalId };
+  }
+  if (draft.kind === "task" && draft.taskId !== "") {
+    return { kind: "task", taskId: draft.taskId };
+  }
+  throw new DomainError(
+    "invalid_note_link",
+    `Choose a ${draft.kind} to link, or select No link.`,
+  );
+}
+
+function noteLinkLabel(
+  note: Note,
+  goals: readonly GoalTree[] | undefined,
+): string | undefined {
+  if (note.linkedGoalId !== undefined) {
+    const goal = goals?.find(({ goal: candidate }) => candidate.id === note.linkedGoalId);
+    return goal === undefined ? "Goal unavailable" : `Goal: ${goal.goal.title}`;
+  }
+  if (note.linkedTaskId !== undefined) {
+    const context = findTaskContext(goals, note.linkedTaskId);
+    return context === undefined
+      ? "Task unavailable"
+      : `Task: ${context.goal.title} / ${context.phase.title} / ${context.task.title}`;
+  }
+  return undefined;
+}
+
+function noteExcerpt(body: string): string {
+  const firstLine = body
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.length > 0) ?? body.trim();
+  return firstLine.length <= 80 ? firstLine : `${firstLine.slice(0, 79)}…`;
+}
+
+interface OptionalLinkFieldsProps {
+  disabled: boolean;
+  draft: LinkDraft;
+  goals: readonly GoalTree[] | undefined;
+  idPrefix: string;
+  onChange: (draft: LinkDraft) => void;
+  workspaceFailed: boolean;
+}
+
+function OptionalLinkFields({
+  disabled,
+  draft,
+  goals,
+  idPrefix,
+  onChange,
+  workspaceFailed,
+}: OptionalLinkFieldsProps) {
+  const linkTargetsReady = goals !== undefined && !workspaceFailed;
+  const selectedGoal =
+    draft.kind === "none"
+      ? undefined
+      : goals?.find(({ goal }) => goal.id === draft.goalId);
+  const taskOptions =
+    selectedGoal?.phases.flatMap(({ phase, tasks }) =>
+      tasks.map((task) => ({ phase, task })),
+    ) ?? [];
+
+  function selectKind(kind: LinkDraft["kind"]) {
+    if (kind === "none") {
+      onChange({ kind: "none" });
+      return;
+    }
+    if (kind === "goal") {
+      onChange({ kind, goalId: goals?.[0]?.goal.id ?? "" });
+      return;
+    }
+
+    const firstGoalWithTask = goals?.find((goalTree) =>
+      goalTree.phases.some(({ tasks }) => tasks.length > 0),
+    );
+    const firstTask = firstGoalWithTask?.phases.find(({ tasks }) => tasks.length > 0)
+      ?.tasks[0];
+    onChange({
+      kind,
+      goalId: firstGoalWithTask?.goal.id ?? "",
+      taskId: firstTask?.id ?? "",
+    });
+  }
+
+  return (
+    <fieldset className="link-fields" disabled={disabled}>
+      <legend>Optional link</legend>
+      <label htmlFor={`${idPrefix}-link-kind`}>Link to</label>
+      <select
+        id={`${idPrefix}-link-kind`}
+        onChange={(event) => selectKind(event.currentTarget.value as LinkDraft["kind"])}
+        value={draft.kind}
+      >
+        <option value="none">No link</option>
+        <option disabled={!linkTargetsReady || goals.length === 0} value="goal">
+          Goal
+        </option>
+        <option
+          disabled={
+            !linkTargetsReady ||
+            !goals.some((goalTree) =>
+              goalTree.phases.some(({ tasks }) => tasks.length > 0),
+            )
+          }
+          value="task"
+        >
+          Task
+        </option>
+      </select>
+
+      {workspaceFailed ? (
+        <p className="field-help">Links are unavailable. You can still add this note without one.</p>
+      ) : goals === undefined ? (
+        <p className="field-help">Loading optional link choices. Unlinked notes remain available.</p>
+      ) : goals.length === 0 ? (
+        <p className="field-help">No goals are available. This note will remain unlinked.</p>
+      ) : null}
+
+      {draft.kind === "goal" ? (
+        <>
+          <label htmlFor={`${idPrefix}-goal`}>Goal</label>
+          <select
+            id={`${idPrefix}-goal`}
+            onChange={(event) =>
+              onChange({ kind: "goal", goalId: event.currentTarget.value })
+            }
+            value={draft.goalId}
+          >
+            <option value="">Choose a goal</option>
+            {goals?.map((goalTree, index) => (
+              <option key={goalTree.goal.id} value={goalTree.goal.id}>
+                {`Goal ${String(index + 1).padStart(2, "0")} · ${goalTree.goal.title}`}
+              </option>
+            ))}
+          </select>
+        </>
+      ) : null}
+
+      {draft.kind === "task" ? (
+        <>
+          <label htmlFor={`${idPrefix}-task-goal`}>Goal containing task</label>
+          <select
+            id={`${idPrefix}-task-goal`}
+            onChange={(event) => {
+              const goalId = event.currentTarget.value;
+              const goalTree = goals?.find(({ goal }) => goal.id === goalId);
+              const firstTask = goalTree?.phases.find(({ tasks }) => tasks.length > 0)
+                ?.tasks[0];
+              onChange({ kind: "task", goalId, taskId: firstTask?.id ?? "" });
+            }}
+            value={draft.goalId}
+          >
+            <option value="">Choose a goal</option>
+            {goals?.map((goalTree, index) => (
+              <option key={goalTree.goal.id} value={goalTree.goal.id}>
+                {`Goal ${String(index + 1).padStart(2, "0")} · ${goalTree.goal.title}`}
+              </option>
+            ))}
+          </select>
+          <label htmlFor={`${idPrefix}-task`}>Task</label>
+          <select
+            id={`${idPrefix}-task`}
+            onChange={(event) =>
+              onChange({
+                kind: "task",
+                goalId: draft.goalId,
+                taskId: event.currentTarget.value,
+              })
+            }
+            value={draft.taskId}
+          >
+            <option value="">Choose a task</option>
+            {taskOptions.map(({ phase, task }) => (
+              <option key={task.id} value={task.id}>
+                {`${phase.title} / ${task.title}`}
+              </option>
+            ))}
+          </select>
+          {selectedGoal !== undefined && taskOptions.length === 0 ? (
+            <p className="field-help">This goal has no tasks. Choose another goal or No link.</p>
+          ) : null}
+        </>
+      ) : null}
+    </fieldset>
+  );
 }
 
 function EntityDialog({
@@ -184,7 +437,6 @@ function EntityDialog({
               aria-invalid={error === undefined ? undefined : true}
               autoComplete="off"
               id={inputId}
-              maxLength={241}
               onChange={(event) => setDraft(event.currentTarget.value)}
               onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
                 if (event.key === "Escape" && !isSavingRef.current) {
@@ -259,7 +511,9 @@ function AppHeader() {
 
 export function TrackerApp({ service }: TrackerAppProps) {
   const [snapshot, setSnapshot] = useState<WorkspaceSnapshot>();
-  const [loadError, setLoadError] = useState<string>();
+  const [workspaceLoadError, setWorkspaceLoadError] = useState<string>();
+  const [inbox, setInbox] = useState<InboxSnapshot>();
+  const [inboxLoadError, setInboxLoadError] = useState<string>();
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [announcement, setAnnouncement] = useState("");
   const [urgentAnnouncement, setUrgentAnnouncement] = useState("");
@@ -269,21 +523,50 @@ export function TrackerApp({ service }: TrackerAppProps) {
   const [selectedPhaseId, setSelectedPhaseId] = useState<string>();
   const homeScrollPosition = useRef(0);
 
-  const loadWorkspace = useCallback(async () => {
-    setLoadError(undefined);
-    setAnnouncement("");
+  const refreshWorkspace = useCallback(async () => {
     try {
       const workspace = await service.getWorkspace();
       setSnapshot(workspace);
-    } catch {
-      setLoadError("Local storage is unavailable. Retry loading.");
-      setAnnouncement("Local data could not be loaded. Retry loading.");
+      setWorkspaceLoadError(undefined);
+    } catch (error) {
+      setWorkspaceLoadError("Goals could not be loaded. Retry this section.");
+      throw error;
     }
   }, [service]);
 
+  const refreshInbox = useCallback(async () => {
+    try {
+      const nextInbox = await service.getInbox();
+      setInbox(nextInbox);
+      setInboxLoadError(undefined);
+    } catch (error) {
+      setInboxLoadError("Notes could not be loaded. Retry this section.");
+      throw error;
+    }
+  }, [service]);
+
+  const loadWorkspace = useCallback(async () => {
+    setAnnouncement("");
+    try {
+      await refreshWorkspace();
+    } catch {
+      setAnnouncement("Goals could not be loaded. Retry the Goals section.");
+    }
+  }, [refreshWorkspace]);
+
+  const loadInbox = useCallback(async () => {
+    setAnnouncement("");
+    try {
+      await refreshInbox();
+    } catch {
+      setAnnouncement("Notes could not be loaded. Retry the Inbox section.");
+    }
+  }, [refreshInbox]);
+
   useEffect(() => {
     void loadWorkspace();
-  }, [loadWorkspace]);
+    void loadInbox();
+  }, [loadInbox, loadWorkspace]);
 
   useEffect(() => {
     if (saveState !== "saved") {
@@ -303,7 +586,7 @@ export function TrackerApp({ service }: TrackerAppProps) {
       setPendingFocusSelector(undefined);
     });
     return () => cancelAnimationFrame(animationFrame);
-  }, [pendingFocusSelector, snapshot]);
+  }, [inbox, pendingFocusSelector, snapshot]);
 
   const selectedGoal = useMemo(
     () => snapshot?.goals.find(({ goal }) => goal.id === selectedGoalId),
@@ -314,28 +597,46 @@ export function TrackerApp({ service }: TrackerAppProps) {
     [selectedGoal, selectedPhaseId],
   );
 
+  const getTaskChecklist = useCallback(
+    (taskId: string) => service.getTaskChecklist(taskId),
+    [service],
+  );
+
+  const noRefresh = useCallback(async () => undefined, []);
+
   const performMutation = useCallback(
-    async (
-      action: () => Promise<unknown>,
-      successMessage: string | ((result: unknown) => string),
+    async <T,>(
+      action: () => Promise<T>,
+      successMessage: string | ((result: T) => string),
       getFocusSelector?: () => string | undefined,
       retryMode: "global" | "local" = "global",
-    ) => {
+      refresh: () => Promise<void> = refreshWorkspace,
+    ): Promise<T> => {
       setSaveState("saving");
       setAnnouncement("");
       setUrgentAnnouncement("");
-      let result: unknown;
+      let result: T;
       try {
         result = await action();
       } catch (error) {
-        if (error instanceof DomainError && error.code === "invalid_title") {
+        if (
+          error instanceof DomainError &&
+          (error.code === "invalid_title" ||
+            error.code === "invalid_note_body" ||
+            error.code === "invalid_note_link")
+        ) {
           setSaveState("idle");
           throw error;
         }
         setSaveState("failed");
         setRetryOperation(
           retryMode === "global"
-            ? { action, successMessage, getFocusSelector }
+            ? {
+                action,
+                successMessage: successMessage as RetryOperation["successMessage"],
+                getFocusSelector,
+                refresh,
+              }
             : undefined,
         );
         if (retryMode === "local") {
@@ -349,14 +650,12 @@ export function TrackerApp({ service }: TrackerAppProps) {
       }
 
       try {
-        const workspace = await service.getWorkspace();
-        setSnapshot(workspace);
+        await refresh();
       } catch {
         setSaveState("saved");
-        setLoadError("The change was saved, but the view could not be refreshed.");
         setAnnouncement("Saved on this device. Retry loading the view.");
         setRetryOperation(undefined);
-        return;
+        return result;
       }
 
       setRetryOperation(undefined);
@@ -365,24 +664,21 @@ export function TrackerApp({ service }: TrackerAppProps) {
         typeof successMessage === "function" ? successMessage(result) : successMessage,
       );
       setPendingFocusSelector(getFocusSelector?.());
+      return result;
     },
-    [service],
+    [refreshWorkspace],
   );
 
   async function retryLastOperation() {
     if (retryOperation === undefined) {
       return;
     }
-    const { action, getFocusSelector, successMessage } = retryOperation;
+    const { action, getFocusSelector, refresh, successMessage } = retryOperation;
     try {
-      await performMutation(action, successMessage, getFocusSelector);
+      await performMutation(action, successMessage, getFocusSelector, "global", refresh);
     } catch {
       // The shared failure banner remains available for another retry.
     }
-  }
-
-  if (snapshot === undefined && loadError === undefined) {
-    return <LoadingShell />;
   }
 
   return (
@@ -399,14 +695,14 @@ export function TrackerApp({ service }: TrackerAppProps) {
         </p>
       )}
 
-      {loadError === undefined ? null : (
+      {selectedGoal !== undefined && workspaceLoadError !== undefined ? (
         <section className="error-banner">
-          <p>Local data could not be loaded. {loadError}</p>
+          <p>{workspaceLoadError}</p>
           <button onClick={() => void loadWorkspace()} type="button">
-            Retry loading
+            Retry goals
           </button>
         </section>
-      )}
+      ) : null}
 
       {saveState !== "failed" ? null : (
         <section className="error-banner">
@@ -424,9 +720,27 @@ export function TrackerApp({ service }: TrackerAppProps) {
       )}
 
       <main id="main-content">
-        {snapshot === undefined ? null : selectedGoal === undefined ? (
+        {selectedGoal === undefined ? (
           <HomeView
-            goals={snapshot.goals}
+            goals={snapshot?.goals}
+            goalsError={workspaceLoadError}
+            inbox={inbox}
+            inboxError={inboxLoadError}
+            onCreateNote={(body, linkTarget) => {
+              let createdId = "";
+              return performMutation(
+                async () => {
+                  const note = await service.createNote(body, linkTarget);
+                  createdId = note.id;
+                  return note;
+                },
+                "Note added.",
+                () =>
+                  createdId === "" ? undefined : `[data-note-id="${createdId}"]`,
+                "local",
+                refreshInbox,
+              );
+            }}
             onCreateGoal={async (title) => {
               let createdId = "";
               await performMutation(
@@ -442,6 +756,30 @@ export function TrackerApp({ service }: TrackerAppProps) {
                 "local",
               );
             }}
+            onDeleteNote={(note) => {
+              const notes = inbox?.items.map((item) => item.note) ?? [];
+              const index = notes.findIndex((candidate) => candidate.id === note.id);
+              const focusId = notes[index + 1]?.id ?? notes[index - 1]?.id;
+              return performMutation(
+                () => service.deleteNote(note.id),
+                "Note deleted.",
+                () =>
+                  focusId === undefined
+                    ? "#quick-note-body"
+                    : `[data-note-id="${focusId}"] .note-actions-trigger`,
+                "local",
+                refreshInbox,
+              );
+            }}
+            onEditNote={(note, body, linkTarget) =>
+              performMutation(
+                () => service.editNote(note.id, body, linkTarget),
+                "Note updated.",
+                () => `[data-note-id="${note.id}"]`,
+                "local",
+                refreshInbox,
+              )
+            }
             onOpenGoal={(goalTree) => {
               homeScrollPosition.current = window.scrollY;
               setSelectedGoalId(goalTree.goal.id);
@@ -455,6 +793,18 @@ export function TrackerApp({ service }: TrackerAppProps) {
                 "local",
               )
             }
+            onReorderNote={(note, target, placement) =>
+              performMutation(
+                () => service.reorderNote(note.id, target.id, placement),
+                (moved) =>
+                  `${noteExcerpt(note.body)} moved to position ${moved.position + 1}.`,
+                () => `[data-note-id="${note.id}"] .note-actions-trigger`,
+                "local",
+                refreshInbox,
+              )
+            }
+            onRetryGoals={loadWorkspace}
+            onRetryInbox={loadInbox}
           />
         ) : (
           <GoalView
@@ -504,6 +854,16 @@ export function TrackerApp({ service }: TrackerAppProps) {
                 "local",
               );
             }}
+            onCreateChecklistItem={(taskId, title) =>
+              performMutation(
+                () => service.createChecklistItem(taskId, title),
+                "Checklist item added.",
+                undefined,
+                "local",
+                noRefresh,
+              )
+            }
+            onGetTaskChecklist={getTaskChecklist}
             onMoveTask={(task, status) =>
               performMutation(
                 () => service.moveTaskToStatus(task.id, status),
@@ -549,6 +909,20 @@ export function TrackerApp({ service }: TrackerAppProps) {
               )
             }
             onSelectPhase={setSelectedPhaseId}
+            onSetChecklistItemCompleted={(taskId, checklistItemId, isCompleted) =>
+              performMutation(
+                () =>
+                  service.setChecklistItemCompleted(
+                    taskId,
+                    checklistItemId,
+                    isCompleted,
+                  ),
+                isCompleted ? "Checklist item completed." : "Checklist item reopened.",
+                undefined,
+                "local",
+                noRefresh,
+              )
+            }
             selectedPhase={selectedPhase}
           />
         )}
@@ -564,101 +938,740 @@ export function TrackerApp({ service }: TrackerAppProps) {
   );
 }
 
-function LoadingShell() {
+interface HomeViewProps {
+  goals: GoalTree[] | undefined;
+  goalsError: string | undefined;
+  inbox: InboxSnapshot | undefined;
+  inboxError: string | undefined;
+  onCreateNote: (body: string, linkTarget: NoteLinkTarget) => Promise<Note>;
+  onCreateGoal: (title: string) => Promise<void>;
+  onDeleteNote: (note: Note) => Promise<Note>;
+  onEditNote: (
+    note: Note,
+    body: string,
+    linkTarget: NoteLinkTarget,
+  ) => Promise<Note>;
+  onOpenGoal: (goal: GoalTree) => void;
+  onRenameGoal: (goal: Goal, title: string) => Promise<void>;
+  onReorderNote: (
+    note: Note,
+    target: Note,
+    placement: ReorderPlacement,
+  ) => Promise<Note>;
+  onRetryGoals: () => Promise<void>;
+  onRetryInbox: () => Promise<void>;
+}
+
+function HomeView({
+  goals,
+  goalsError,
+  inbox,
+  inboxError,
+  onCreateGoal,
+  onCreateNote,
+  onDeleteNote,
+  onEditNote,
+  onOpenGoal,
+  onRenameGoal,
+  onReorderNote,
+  onRetryGoals,
+  onRetryInbox,
+}: HomeViewProps) {
   return (
-    <div className="app-shell" aria-busy="true">
-      <a className="skip-link" href="#main-content">
-        Skip to main content
-      </a>
-      <AppHeader />
-      <main id="main-content">
-        <h1>Loading local data</h1>
-        <div className="skeleton-grid" aria-hidden="true">
-          <div className="skeleton-card" />
-          <div className="skeleton-card" />
-          <div className="skeleton-card" />
+    <div className="home-stack">
+      <QuickNoteComposer
+        goals={goals}
+        isReady={inbox !== undefined && inboxError === undefined}
+        onCreate={onCreateNote}
+        workspaceFailed={goalsError !== undefined}
+      />
+      <InboxView
+        goals={goals}
+        inbox={inbox}
+        loadError={inboxError}
+        onDelete={onDeleteNote}
+        onEdit={onEditNote}
+        onReorder={onReorderNote}
+        onRetry={onRetryInbox}
+        workspaceFailed={goalsError !== undefined}
+      />
+
+      <section aria-labelledby="goals-title">
+        <div className="section-heading page-heading">
+          <h1 id="goals-title">Goals</h1>
+          <EntityDialog
+            dialogTitle="Create goal"
+            inputId="new-goal-title"
+            label="Goal title"
+            onSubmit={onCreateGoal}
+            placeholder="Ship the next release"
+            submitLabel="Create goal"
+            triggerIcon={<PlusIcon aria-hidden="true" size={20} weight="bold" />}
+            triggerLabel="Create goal"
+          />
         </div>
-      </main>
+
+        {goalsError !== undefined ? (
+          <div className="error-banner section-error">
+            <p>{goalsError}</p>
+            <button onClick={() => void onRetryGoals()} type="button">
+              Retry goals
+            </button>
+          </div>
+        ) : goals === undefined ? (
+          <div aria-label="Loading local goals" className="skeleton-grid">
+            <div className="skeleton-card" />
+            <div className="skeleton-card" />
+            <div className="skeleton-card" />
+          </div>
+        ) : goals.length === 0 ? (
+          <div className="empty-state">
+            <h2>No goals yet</h2>
+            <p>Use the plus button to create your first goal.</p>
+          </div>
+        ) : (
+          <div className="goal-grid">
+            {goals.map((goalTree, index) => {
+              const updatedLabel = formatUpdatedAt(goalTree.goal.updatedAt);
+              return (
+                <article
+                  className={`goal-pin note-${noteColor(goalTree.goal.id)}`}
+                  data-goal-id={goalTree.goal.id}
+                  key={goalTree.goal.id}
+                >
+                  <div
+                    aria-label={`Open goal ${goalTree.goal.title}. Updated ${updatedLabel}. Double-click or press Enter.`}
+                    className="goal-open-surface"
+                    onDoubleClick={() => onOpenGoal(goalTree)}
+                    onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onOpenGoal(goalTree);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <span className="goal-index" aria-hidden="true">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <h2>{goalTree.goal.title}</h2>
+                    <time dateTime={goalTree.goal.updatedAt}>{updatedLabel}</time>
+                  </div>
+                  <EntityDialog
+                    dialogTitle="Rename goal"
+                    initialValue={goalTree.goal.title}
+                    inputId={`rename-goal-${goalTree.goal.id}`}
+                    label="Goal title"
+                    onSubmit={(title) => onRenameGoal(goalTree.goal, title)}
+                    placeholder="Goal title"
+                    submitLabel="Save changes"
+                    triggerClassName="card-icon goal-edit"
+                    triggerIcon={<PencilSimpleIcon aria-hidden="true" size={18} />}
+                    triggerLabel={`Rename goal ${goalTree.goal.title}`}
+                  />
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
 
-interface HomeViewProps {
-  goals: GoalTree[];
-  onCreateGoal: (title: string) => Promise<void>;
-  onOpenGoal: (goal: GoalTree) => void;
-  onRenameGoal: (goal: Goal, title: string) => Promise<void>;
+interface QuickNoteComposerProps {
+  goals: readonly GoalTree[] | undefined;
+  isReady: boolean;
+  onCreate: (body: string, linkTarget: NoteLinkTarget) => Promise<Note>;
+  workspaceFailed: boolean;
 }
 
-function HomeView({ goals, onCreateGoal, onOpenGoal, onRenameGoal }: HomeViewProps) {
-  return (
-    <section>
-      <div className="section-heading page-heading">
-        <h1>Goals</h1>
-        <EntityDialog
-          dialogTitle="Create goal"
-          inputId="new-goal-title"
-          label="Goal title"
-          onSubmit={onCreateGoal}
-          placeholder="Ship the next release"
-          submitLabel="Create goal"
-          triggerIcon={<PlusIcon aria-hidden="true" size={20} weight="bold" />}
-          triggerLabel="Create goal"
-        />
-      </div>
+function QuickNoteComposer({
+  goals,
+  isReady,
+  onCreate,
+  workspaceFailed,
+}: QuickNoteComposerProps) {
+  const [draft, setDraft] = useState("");
+  const [linkDraft, setLinkDraft] = useState<LinkDraft>({ kind: "none" });
+  const [isLinkOpen, setIsLinkOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string>();
+  const formRef = useRef<HTMLFormElement>(null);
+  const errorId = "quick-note-error";
+  const hintId = "quick-note-hint";
 
-      {goals.length === 0 ? (
-        <div className="empty-state">
-          <h2>No goals yet</h2>
-          <p>Use the plus button to create your first goal.</p>
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!isReady || isSaving) {
+      return;
+    }
+
+    setIsSaving(true);
+    setError(undefined);
+    try {
+      const linkTarget = linkTargetForDraft(linkDraft);
+      await onCreate(draft, linkTarget);
+      setDraft("");
+      setLinkDraft({ kind: "none" });
+      setIsLinkOpen(false);
+    } catch (submissionError) {
+      setError(getErrorMessage(submissionError));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <section aria-labelledby="quick-note-title" className="quick-note-section">
+      <form aria-busy={isSaving} onSubmit={submit} ref={formRef}>
+        <label id="quick-note-title" htmlFor="quick-note-body">
+          Quick note
+        </label>
+        <textarea
+          aria-describedby={`${hintId}${error === undefined ? "" : ` ${errorId}`}`}
+          aria-invalid={error === undefined ? undefined : true}
+          disabled={!isReady}
+          id="quick-note-body"
+          onChange={(event) => setDraft(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+              event.preventDefault();
+              formRef.current?.requestSubmit();
+            }
+          }}
+          placeholder="Capture a thought, bug, or next step"
+          readOnly={isSaving}
+          value={draft}
+        />
+        <p className="field-help" id={hintId}>
+          Control or Command + Enter to add. Enter starts a new line.
+        </p>
+        <button
+          aria-expanded={isLinkOpen}
+          className="link-disclosure"
+          disabled={isSaving}
+          onClick={() => setIsLinkOpen((current) => !current)}
+          type="button"
+        >
+          <LinkSimpleIcon aria-hidden="true" size={18} />
+          {isLinkOpen ? "Hide link" : "Add link"}
+        </button>
+        {isLinkOpen ? (
+          <OptionalLinkFields
+            disabled={isSaving}
+            draft={linkDraft}
+            goals={goals}
+            idPrefix="quick-note"
+            onChange={setLinkDraft}
+            workspaceFailed={workspaceFailed}
+          />
+        ) : null}
+        {error === undefined ? null : (
+          <p className="field-error" id={errorId}>
+            {error}
+          </p>
+        )}
+        {!isReady ? (
+          <p className="field-help" role="status">
+            Loading the local notes repository before capture becomes available.
+          </p>
+        ) : null}
+        <div className="composer-actions">
+          <button className="button-primary" disabled={!isReady || isSaving} type="submit">
+            <PlusIcon aria-hidden="true" size={18} weight="bold" />
+            {isSaving ? "Adding…" : error === undefined ? "Add note" : "Retry"}
+          </button>
         </div>
+      </form>
+    </section>
+  );
+}
+
+interface InboxViewProps {
+  goals: readonly GoalTree[] | undefined;
+  inbox: InboxSnapshot | undefined;
+  loadError: string | undefined;
+  onDelete: (note: Note) => Promise<Note>;
+  onEdit: (note: Note, body: string, linkTarget: NoteLinkTarget) => Promise<Note>;
+  onReorder: (
+    note: Note,
+    target: Note,
+    placement: ReorderPlacement,
+  ) => Promise<Note>;
+  onRetry: () => Promise<void>;
+  workspaceFailed: boolean;
+}
+
+function InboxView({
+  goals,
+  inbox,
+  loadError,
+  onDelete,
+  onEdit,
+  onReorder,
+  onRetry,
+  workspaceFailed,
+}: InboxViewProps) {
+  const notes = inbox?.items.map((item) => item.note);
+  return (
+    <section aria-labelledby="inbox-title" className="inbox-section">
+      <div className="section-heading inbox-heading">
+        <h2 id="inbox-title">Inbox</h2>
+        <span aria-label={`${notes?.length ?? 0} notes`} className="task-count">
+          {notes === undefined ? "—" : notes.length}
+        </span>
+      </div>
+      {loadError !== undefined ? (
+        <div className="error-banner section-error">
+          <p>{loadError}</p>
+          <button onClick={() => void onRetry()} type="button">
+            Retry inbox
+          </button>
+        </div>
+      ) : notes === undefined ? (
+        <div aria-label="Loading local notes" className="inbox-skeleton">
+          <div />
+          <div />
+        </div>
+      ) : notes.length === 0 ? (
+        <p className="inbox-empty">No notes yet. Add one with Quick note.</p>
       ) : (
-        <div className="goal-grid">
-          {goals.map((goalTree, index) => {
-            const updatedLabel = formatUpdatedAt(goalTree.goal.updatedAt);
-            return (
-              <article
-                className={`goal-pin note-${noteColor(goalTree.goal.id)}`}
-                data-goal-id={goalTree.goal.id}
-                key={goalTree.goal.id}
-              >
-                <div
-                  aria-label={`Open goal ${goalTree.goal.title}. Updated ${updatedLabel}. Double-click or press Enter.`}
-                  className="goal-open-surface"
-                  onDoubleClick={() => onOpenGoal(goalTree)}
-                  onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      onOpenGoal(goalTree);
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <span className="goal-index" aria-hidden="true">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <h2>{goalTree.goal.title}</h2>
-                  <time dateTime={goalTree.goal.updatedAt}>{updatedLabel}</time>
-                </div>
-                <EntityDialog
-                  dialogTitle="Rename goal"
-                  initialValue={goalTree.goal.title}
-                  inputId={`rename-goal-${goalTree.goal.id}`}
-                  label="Goal title"
-                  onSubmit={(title) => onRenameGoal(goalTree.goal, title)}
-                  placeholder="Goal title"
-                  submitLabel="Save changes"
-                  triggerClassName="card-icon goal-edit"
-                  triggerIcon={<PencilSimpleIcon aria-hidden="true" size={18} />}
-                  triggerLabel={`Rename goal ${goalTree.goal.title}`}
-                />
-              </article>
-            );
-          })}
+        <div className="note-list">
+          {notes.map((note, index) => (
+            <NoteCard
+              goals={goals}
+              key={note.id}
+              nextNote={notes[index + 1]}
+              note={note}
+              onDelete={onDelete}
+              onEdit={onEdit}
+              onReorder={onReorder}
+              previousNote={notes[index - 1]}
+              workspaceFailed={workspaceFailed}
+            />
+          ))}
         </div>
       )}
     </section>
+  );
+}
+
+interface NoteCardProps {
+  goals: readonly GoalTree[] | undefined;
+  nextNote: Note | undefined;
+  note: Note;
+  onDelete: (note: Note) => Promise<Note>;
+  onEdit: (note: Note, body: string, linkTarget: NoteLinkTarget) => Promise<Note>;
+  onReorder: (
+    note: Note,
+    target: Note,
+    placement: ReorderPlacement,
+  ) => Promise<Note>;
+  previousNote: Note | undefined;
+  workspaceFailed: boolean;
+}
+
+function NoteCard({
+  goals,
+  nextNote,
+  note,
+  onDelete,
+  onEdit,
+  onReorder,
+  previousNote,
+  workspaceFailed,
+}: NoteCardProps) {
+  const linkLabel = noteLinkLabel(note, goals);
+  const updatedLabel = formatUpdatedAt(note.updatedAt);
+  return (
+    <article className="note-card" data-note-id={note.id} tabIndex={-1}>
+      <div className="note-card-header">
+        <p className="note-body">{note.body}</p>
+        <div className="card-actions note-card-actions">
+          <NoteEditorDialog
+            goals={goals}
+            note={note}
+            onEdit={onEdit}
+            workspaceFailed={workspaceFailed}
+          />
+          <NoteActionsDialog
+            nextNote={nextNote}
+            note={note}
+            onDelete={onDelete}
+            onReorder={onReorder}
+            previousNote={previousNote}
+          />
+        </div>
+      </div>
+      {linkLabel === undefined ? null : <p className="note-context">{linkLabel}</p>}
+      <time dateTime={note.updatedAt}>Updated {updatedLabel}</time>
+    </article>
+  );
+}
+
+interface NoteEditorDialogProps {
+  goals: readonly GoalTree[] | undefined;
+  note: Note;
+  onEdit: (note: Note, body: string, linkTarget: NoteLinkTarget) => Promise<Note>;
+  workspaceFailed: boolean;
+}
+
+function NoteEditorDialog({
+  goals,
+  note,
+  onEdit,
+  workspaceFailed,
+}: NoteEditorDialogProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [body, setBody] = useState(note.body);
+  const [linkDraft, setLinkDraft] = useState<LinkDraft>(() =>
+    linkDraftForNote(note, goals),
+  );
+  const [isLinkOpen, setIsLinkOpen] = useState(
+    note.linkedGoalId !== undefined || note.linkedTaskId !== undefined,
+  );
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string>();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const errorId = `edit-note-${note.id}-error`;
+
+  useEffect(() => {
+    if (isOpen && dialogRef.current !== null && !dialogRef.current.open) {
+      dialogRef.current.showModal();
+      requestAnimationFrame(() => inputRef.current?.focus());
+    }
+  }, [isOpen]);
+
+  function open() {
+    setBody(note.body);
+    const nextLink = linkDraftForNote(note, goals);
+    setLinkDraft(nextLink);
+    setIsLinkOpen(nextLink.kind !== "none");
+    setError(undefined);
+    setIsOpen(true);
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (isSaving) {
+      return;
+    }
+    setIsSaving(true);
+    setError(undefined);
+    try {
+      await onEdit(note, body, linkTargetForDraft(linkDraft));
+      dialogRef.current?.close();
+    } catch (submissionError) {
+      setError(getErrorMessage(submissionError));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        aria-label={`Edit note ${noteExcerpt(note.body)}`}
+        className="icon-button card-icon"
+        data-tooltip="Edit note"
+        onClick={open}
+        ref={triggerRef}
+        title="Edit note"
+        type="button"
+      >
+        <PencilSimpleIcon aria-hidden="true" size={17} />
+      </button>
+      {isOpen ? (
+        <dialog
+          aria-labelledby={`edit-note-${note.id}-title`}
+          className="entity-dialog note-editor-dialog"
+          onCancel={(event) => {
+            if (isSaving) {
+              event.preventDefault();
+            }
+          }}
+          onClose={() => {
+            setIsOpen(false);
+            setError(undefined);
+            requestAnimationFrame(() => triggerRef.current?.focus());
+          }}
+          ref={dialogRef}
+        >
+          <form aria-busy={isSaving} className="dialog-form" onSubmit={submit} ref={formRef}>
+            <div className="dialog-header">
+              <h2 id={`edit-note-${note.id}-title`}>Edit note</h2>
+              <button
+                aria-label="Close edit note"
+                className="icon-button dialog-close"
+                disabled={isSaving}
+                onClick={() => dialogRef.current?.close()}
+                title="Close"
+                type="button"
+              >
+                <XIcon aria-hidden="true" size={18} weight="bold" />
+              </button>
+            </div>
+            <label htmlFor={`edit-note-${note.id}-body`}>Note body</label>
+            <textarea
+              aria-describedby={error === undefined ? undefined : errorId}
+              aria-invalid={error === undefined ? undefined : true}
+              id={`edit-note-${note.id}-body`}
+              onChange={(event) => setBody(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                  event.preventDefault();
+                  formRef.current?.requestSubmit();
+                }
+              }}
+              readOnly={isSaving}
+              ref={inputRef}
+              value={body}
+            />
+            <button
+              aria-expanded={isLinkOpen}
+              className="link-disclosure"
+              disabled={isSaving}
+              onClick={() => setIsLinkOpen((current) => !current)}
+              type="button"
+            >
+              <LinkSimpleIcon aria-hidden="true" size={18} />
+              {isLinkOpen ? "Hide link" : "Add link"}
+            </button>
+            {isLinkOpen ? (
+              <OptionalLinkFields
+                disabled={isSaving}
+                draft={linkDraft}
+                goals={goals}
+                idPrefix={`edit-note-${note.id}`}
+                onChange={setLinkDraft}
+                workspaceFailed={workspaceFailed}
+              />
+            ) : null}
+            {error === undefined ? null : (
+              <p className="field-error" id={errorId}>
+                {error}
+              </p>
+            )}
+            <div className="dialog-actions">
+              <button disabled={isSaving} onClick={() => dialogRef.current?.close()} type="button">
+                Cancel
+              </button>
+              <button className="button-primary" disabled={isSaving} type="submit">
+                {isSaving ? "Saving…" : error === undefined ? "Save changes" : "Retry"}
+              </button>
+            </div>
+          </form>
+        </dialog>
+      ) : null}
+    </>
+  );
+}
+
+interface NoteActionsDialogProps {
+  nextNote: Note | undefined;
+  note: Note;
+  onDelete: (note: Note) => Promise<Note>;
+  onReorder: (
+    note: Note,
+    target: Note,
+    placement: ReorderPlacement,
+  ) => Promise<Note>;
+  previousNote: Note | undefined;
+}
+
+function NoteActionsDialog({
+  nextNote,
+  note,
+  onDelete,
+  onReorder,
+  previousNote,
+}: NoteActionsDialogProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [view, setView] = useState<"actions" | "delete">("actions");
+  const [isMutating, setIsMutating] = useState(false);
+  const [error, setError] = useState<string>();
+  const [retryAction, setRetryAction] = useState<(() => Promise<void>)>();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const deleteCancelRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (isOpen && dialogRef.current !== null && !dialogRef.current.open) {
+      dialogRef.current.showModal();
+    }
+  }, [isOpen]);
+
+  async function run(action: () => Promise<unknown>) {
+    if (isMutating) {
+      return;
+    }
+    setIsMutating(true);
+    setError(undefined);
+    setRetryAction(() => async () => {
+      await run(action);
+    });
+    try {
+      await action();
+      dialogRef.current?.close();
+    } catch (mutationError) {
+      setError(getErrorMessage(mutationError));
+    } finally {
+      setIsMutating(false);
+    }
+  }
+
+  function showDeleteConfirmation() {
+    setView("delete");
+    setError(undefined);
+    setRetryAction(undefined);
+    requestAnimationFrame(() => deleteCancelRef.current?.focus());
+  }
+
+  return (
+    <>
+      <button
+        aria-label={`Open note actions for ${noteExcerpt(note.body)}`}
+        className="icon-button card-icon note-actions-trigger"
+        data-tooltip="Note actions"
+        onClick={() => {
+          setView("actions");
+          setError(undefined);
+          setRetryAction(undefined);
+          setIsOpen(true);
+        }}
+        ref={triggerRef}
+        title="Note actions"
+        type="button"
+      >
+        <DotsThreeIcon aria-hidden="true" size={20} weight="bold" />
+      </button>
+      {isOpen ? (
+        <dialog
+          aria-labelledby={`note-actions-${note.id}-title`}
+          className="entity-dialog note-actions-dialog"
+          onCancel={(event) => {
+            if (isMutating) {
+              event.preventDefault();
+            }
+          }}
+          onClose={() => {
+            setIsOpen(false);
+            setError(undefined);
+            setRetryAction(undefined);
+            requestAnimationFrame(() => triggerRef.current?.focus());
+          }}
+          ref={dialogRef}
+        >
+          <div aria-busy={isMutating} className="dialog-form">
+            <div className="dialog-header">
+              <div>
+                <h2 id={`note-actions-${note.id}-title`}>
+                  {view === "actions" ? "Note actions" : "Delete note?"}
+                </h2>
+                <p>{noteExcerpt(note.body)}</p>
+              </div>
+              <button
+                aria-label="Close note actions"
+                className="icon-button dialog-close"
+                disabled={isMutating}
+                onClick={() => dialogRef.current?.close()}
+                title="Close"
+                type="button"
+              >
+                <XIcon aria-hidden="true" size={18} weight="bold" />
+              </button>
+            </div>
+            {view === "actions" ? (
+              <>
+                <div className="task-option-grid note-order-actions">
+                  <button
+                    aria-label={
+                      previousNote === undefined
+                        ? "Note is already first"
+                        : `Move note before ${noteExcerpt(previousNote.body)}`
+                    }
+                    className="task-option"
+                    disabled={isMutating || previousNote === undefined}
+                    onClick={() => {
+                      if (previousNote !== undefined) {
+                        void run(() => onReorder(note, previousNote, "before"));
+                      }
+                    }}
+                    type="button"
+                  >
+                    <CaretUpIcon aria-hidden="true" size={20} />
+                    <span>Move before</span>
+                    {previousNote === undefined ? <small>Already first</small> : null}
+                  </button>
+                  <button
+                    aria-label={
+                      nextNote === undefined
+                        ? "Note is already last"
+                        : `Move note after ${noteExcerpt(nextNote.body)}`
+                    }
+                    className="task-option"
+                    disabled={isMutating || nextNote === undefined}
+                    onClick={() => {
+                      if (nextNote !== undefined) {
+                        void run(() => onReorder(note, nextNote, "after"));
+                      }
+                    }}
+                    type="button"
+                  >
+                    <CaretDownIcon aria-hidden="true" size={20} />
+                    <span>Move after</span>
+                    {nextNote === undefined ? <small>Already last</small> : null}
+                  </button>
+                </div>
+                <button
+                  className="danger-action"
+                  disabled={isMutating}
+                  onClick={showDeleteConfirmation}
+                  type="button"
+                >
+                  <TrashSimpleIcon aria-hidden="true" size={18} />
+                  Delete note
+                </button>
+              </>
+            ) : (
+              <div className="delete-confirmation">
+                <p>This permanently deletes this note. This action cannot be undone.</p>
+                <div className="dialog-actions">
+                  <button
+                    disabled={isMutating}
+                    onClick={() => dialogRef.current?.close()}
+                    ref={deleteCancelRef}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="button-danger"
+                    disabled={isMutating}
+                    onClick={() => void run(() => onDelete(note))}
+                    type="button"
+                  >
+                    <TrashSimpleIcon aria-hidden="true" size={18} />
+                    {isMutating ? "Deleting…" : error === undefined ? "Delete note" : "Retry delete"}
+                  </button>
+                </div>
+              </div>
+            )}
+            {error === undefined ? null : <p className="field-error">{error}</p>}
+            {view === "actions" && error !== undefined && retryAction !== undefined ? (
+              <button onClick={() => void retryAction()} type="button">
+                Retry last action
+              </button>
+            ) : null}
+          </div>
+        </dialog>
+      ) : null}
+    </>
   );
 }
 

@@ -1,21 +1,65 @@
 import { DomainError } from "../domain/errors";
 import type {
+  ChecklistItem,
   Goal,
+  InboxSnapshot,
+  Note,
+  NoteLinkTarget,
   Phase,
   Task,
+  TaskChecklistSnapshot,
   TaskStatus,
   WorkspaceSnapshot,
 } from "../domain/model";
 import { isTaskStatus } from "../domain/model";
 import {
+  applyNoteLink,
   moveTaskToState,
+  normalizeNoteBody,
   normalizeTitle,
   sortByPosition,
+  validateNoteLinkTarget,
+  withNormalizedNotePositions,
   withNormalizedTaskPositions,
 } from "../domain/rules";
-import type { ApplicationDependencies, TrackerDatabase } from "./ports";
+import type {
+  ApplicationDependencies,
+  StoreName,
+  TrackerDatabase,
+  TrackerRepositories,
+} from "./ports";
 
 export type ReorderPlacement = "before" | "after";
+
+function noteStores(target: NoteLinkTarget): StoreName[] {
+  switch (target.kind) {
+    case "none":
+      return ["notes"];
+    case "goal":
+      return ["goals", "notes"];
+    case "task":
+      return ["tasks", "notes"];
+  }
+}
+
+async function requireNoteLinkTarget(
+  repositories: TrackerRepositories,
+  target: NoteLinkTarget,
+): Promise<void> {
+  switch (target.kind) {
+    case "none":
+      return;
+    case "goal":
+      if ((await repositories.goals.get(target.goalId)) === undefined) {
+        throw new DomainError("not_found", "Linked goal not found.");
+      }
+      return;
+    case "task":
+      if ((await repositories.tasks.get(target.taskId)) === undefined) {
+        throw new DomainError("not_found", "Linked task not found.");
+      }
+  }
+}
 
 export class TrackerService {
   constructor(
@@ -68,6 +112,35 @@ export class TrackerService {
               ),
             })),
           })),
+        };
+      },
+    );
+  }
+
+  async getInbox(): Promise<InboxSnapshot> {
+    return this.database.transaction(["notes"], "readonly", async (repositories) => {
+      const notes = sortByPosition(await repositories.notes.list());
+      return {
+        items: notes.map((note) => ({ kind: "note" as const, note })),
+      };
+    });
+  }
+
+  async getTaskChecklist(taskId: string): Promise<TaskChecklistSnapshot> {
+    return this.database.transaction(
+      ["tasks", "checklistItems"],
+      "readonly",
+      async (repositories) => {
+        const task = await repositories.tasks.get(taskId);
+        if (task === undefined) {
+          throw new DomainError("not_found", "Task not found.");
+        }
+
+        return {
+          task,
+          checklistItems: sortByPosition(
+            await repositories.checklistItems.listByTask(taskId),
+          ),
         };
       },
     );
@@ -166,6 +239,67 @@ export class TrackerService {
     );
   }
 
+  async createNote(
+    rawBody: string,
+    rawLinkTarget: NoteLinkTarget = { kind: "none" },
+  ): Promise<Note> {
+    const body = normalizeNoteBody(rawBody);
+    const linkTarget = validateNoteLinkTarget(rawLinkTarget);
+    const now = this.dependencies.clock();
+
+    return this.database.transaction(
+      noteStores(linkTarget),
+      "readwrite",
+      async (repositories) => {
+        await requireNoteLinkTarget(repositories, linkTarget);
+        const siblings = await repositories.notes.list();
+        const note = applyNoteLink(
+          {
+            id: this.dependencies.createId(),
+            body,
+            position: siblings.length,
+            createdAt: now,
+            updatedAt: now,
+          },
+          linkTarget,
+        );
+
+        await repositories.notes.put(note);
+        return note;
+      },
+    );
+  }
+
+  async createChecklistItem(taskId: string, rawTitle: string): Promise<ChecklistItem> {
+    const title = normalizeTitle(rawTitle);
+    const now = this.dependencies.clock();
+
+    return this.database.transaction(
+      ["tasks", "checklistItems"],
+      "readwrite",
+      async (repositories) => {
+        const task = await repositories.tasks.get(taskId);
+        if (task === undefined) {
+          throw new DomainError("not_found", "Task not found.");
+        }
+
+        const siblings = await repositories.checklistItems.listByTask(taskId);
+        const checklistItem: ChecklistItem = {
+          id: this.dependencies.createId(),
+          taskId,
+          title,
+          isCompleted: false,
+          position: siblings.length,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        await repositories.checklistItems.put(checklistItem);
+        return checklistItem;
+      },
+    );
+  }
+
   async renameGoal(id: string, rawTitle: string): Promise<Goal> {
     const title = normalizeTitle(rawTitle);
     const now = this.dependencies.clock();
@@ -211,6 +345,150 @@ export class TrackerService {
       const renamed = { ...task, title, updatedAt: now };
       await repositories.tasks.put(renamed);
       return renamed;
+    });
+  }
+
+  async editNote(
+    id: string,
+    rawBody: string,
+    rawLinkTarget: NoteLinkTarget,
+  ): Promise<Note> {
+    const body = normalizeNoteBody(rawBody);
+    const linkTarget = validateNoteLinkTarget(rawLinkTarget);
+    const now = this.dependencies.clock();
+
+    return this.database.transaction(
+      noteStores(linkTarget),
+      "readwrite",
+      async (repositories) => {
+        const note = await repositories.notes.get(id);
+        if (note === undefined) {
+          throw new DomainError("not_found", "Note not found.");
+        }
+        await requireNoteLinkTarget(repositories, linkTarget);
+
+        const edited = applyNoteLink(
+          {
+            id: note.id,
+            body,
+            position: note.position,
+            createdAt: note.createdAt,
+            updatedAt: now,
+          },
+          linkTarget,
+        );
+        await repositories.notes.put(edited);
+        return edited;
+      },
+    );
+  }
+
+  async setChecklistItemCompleted(
+    taskId: string,
+    checklistItemId: string,
+    isCompleted: boolean,
+  ): Promise<ChecklistItem> {
+    return this.database.transaction(
+      ["tasks", "checklistItems"],
+      "readwrite",
+      async (repositories) => {
+        const [task, checklistItem] = await Promise.all([
+          repositories.tasks.get(taskId),
+          repositories.checklistItems.get(checklistItemId),
+        ]);
+        if (task === undefined || checklistItem === undefined) {
+          throw new DomainError("not_found", "Task or checklist item not found.");
+        }
+        if (checklistItem.taskId !== task.id) {
+          throw new DomainError(
+            "parent_mismatch",
+            "The checklist item does not belong to the selected task.",
+          );
+        }
+        if (checklistItem.isCompleted === isCompleted) {
+          return checklistItem;
+        }
+
+        const updated: ChecklistItem = {
+          ...checklistItem,
+          isCompleted,
+          updatedAt: this.dependencies.clock(),
+        };
+        await repositories.checklistItems.put(updated);
+        return updated;
+      },
+    );
+  }
+
+  async reorderNote(
+    id: string,
+    targetNoteId: string,
+    placement: ReorderPlacement,
+  ): Promise<Note> {
+    if (placement !== "before" && placement !== "after") {
+      throw new DomainError("invalid_reorder_target", "Unknown note placement.");
+    }
+
+    return this.database.transaction(["notes"], "readwrite", async (repositories) => {
+      const [note, target] = await Promise.all([
+        repositories.notes.get(id),
+        repositories.notes.get(targetNoteId),
+      ]);
+      if (note === undefined || target === undefined) {
+        throw new DomainError("not_found", "Note or reorder target not found.");
+      }
+      if (note.id === target.id) {
+        throw new DomainError(
+          "invalid_reorder_target",
+          "A note must be reordered around a different note.",
+        );
+      }
+
+      const siblings = sortByPosition(await repositories.notes.list());
+      const withoutNote = siblings.filter((candidate) => candidate.id !== note.id);
+      const targetIndex = withoutNote.findIndex(
+        (candidate) => candidate.id === target.id,
+      );
+      if (targetIndex < 0) {
+        throw new DomainError(
+          "invalid_reorder_target",
+          "The reorder target is not a current note.",
+        );
+      }
+
+      const insertionIndex = placement === "before" ? targetIndex : targetIndex + 1;
+      withoutNote.splice(insertionIndex, 0, note);
+      const normalized = withNormalizedNotePositions(
+        withoutNote,
+        this.dependencies.clock(),
+      );
+      const moved = normalized.find((candidate) => candidate.id === note.id);
+      if (moved === undefined) {
+        throw new DomainError("not_found", "Note disappeared during reorder.");
+      }
+
+      await repositories.notes.putMany(normalized);
+      return moved;
+    });
+  }
+
+  async deleteNote(id: string): Promise<Note> {
+    return this.database.transaction(["notes"], "readwrite", async (repositories) => {
+      const note = await repositories.notes.get(id);
+      if (note === undefined) {
+        throw new DomainError("not_found", "Note not found.");
+      }
+
+      const remaining = sortByPosition(
+        (await repositories.notes.list()).filter((candidate) => candidate.id !== id),
+      );
+      const normalized = withNormalizedNotePositions(
+        remaining,
+        this.dependencies.clock(),
+      );
+      await repositories.notes.delete(id);
+      await repositories.notes.putMany(normalized);
+      return note;
     });
   }
 

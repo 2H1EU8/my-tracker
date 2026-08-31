@@ -126,6 +126,23 @@ This file records approved product and architecture decisions. Update it when a 
   accessible names, tooltips, visible focus, and 44 px hit targets. Modal
   commit/cancel/retry and destructive actions retain visible text.
 
+## D-015 — Add M2 data with a forward IndexedDB v2 migration
+
+- Date: 2026-08-30
+- Status: accepted for M2
+- Decision: Advance the internal IndexedDB database from version 1 to version 2
+  by creating normalized `checklistItems` and `notes` stores and their parent/order
+  indexes without replacing the existing `goals`, `phases`, or `tasks` stores.
+- Rationale: Checklist items and notes are already part of the approved domain
+  and public backup contract. A forward additive migration preserves completed
+  M1 data while keeping UI access behind repository ports.
+- Backward compatibility: Existing v1 records and indexes retain their meaning
+  and data. Opening v2 with an older build is not supported; restoring portable
+  data remains an M5 capability.
+- Consequence: M2 must include a v1 database fixture, upgrade/reopen evidence,
+  and atomic normalization tests. The public interchange schemas and their
+  version numbers do not change.
+
 ## Deferred decisions
 
 | Topic | Decide by | Default until decided |

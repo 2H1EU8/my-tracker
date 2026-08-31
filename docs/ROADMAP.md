@@ -64,7 +64,9 @@ Exit gate:
 
 ## M2 — Checklist and personal inbox
 
-Status: ready to start after the completed M1 handoff.
+Status: in progress under the PM-led Design, Dev, and QA handoff.
+
+Ready work item: [`docs/work-items/M2_CHECKLIST_PERSONAL_INBOX.md`](work-items/M2_CHECKLIST_PERSONAL_INBOX.md)
 
 Outcome:
 
@@ -75,6 +77,11 @@ In scope:
 - Quick notes and optional goal/task links.
 - Checklist items in task detail.
 - Inbox filtering and retained completed/fired states scaffolding.
+
+M2 keeps the inbox boundary ready for filtering but shows no redundant Notes-only
+filter control. Reminder records, visible mixed-kind filters, and fired-state
+presentation remain part of the cohesive M3 reminder lifecycle slice rather than
+appearing as nonfunctional M2 controls.
 
 Exit gate:
 
