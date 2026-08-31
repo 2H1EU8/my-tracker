@@ -2,7 +2,23 @@
 
 ## Status
 
-Ready for Design, Dev, and QA implementation under the PM handoff below.
+Implementation complete in the working tree; automated verification passes.
+Real unpacked-Chrome QA remains pending, so this work item is not yet accepted.
+
+## Implementation handoff — 2026-08-31
+
+- Delivered note capture, edit, optional linking, named reordering, and confirmed
+  deletion, plus task-detail checklist create and check/uncheck behavior.
+- Added IndexedDB v2 checklist/note persistence and recovery that permits retrying
+  a blocked v1-to-v2 upgrade through the same database adapter.
+- Preserved the public schemas, extension permissions, local-only boundary, and
+  independent task/checklist status semantics.
+- Passed `pnpm typecheck`, `pnpm test:unit` (18 tests),
+  `pnpm test:integration` (10 tests), `pnpm test` (28 tests), `pnpm build`, and
+  `git diff --check`.
+- QA must execute the production build from `.output/chrome-mv3` against the
+  scenarios in `docs/qa/M2_TEST_PLAN.md`, including close/reopen persistence,
+  keyboard flows, IndexedDB upgrade, error recovery, and offline/network checks.
 
 ## User outcome
 

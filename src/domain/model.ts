@@ -136,6 +136,13 @@ export interface TaskChecklistSnapshot {
   checklistItems: ChecklistItem[];
 }
 
+export interface ChecklistProgress {
+  completed: number;
+  total: number;
+}
+
+export type ChecklistProgressByTask = Record<EntityId, ChecklistProgress>;
+
 export function isTaskStatus(value: string): value is TaskStatus {
   return (TASK_STATUSES as readonly string[]).includes(value);
 }

@@ -31,7 +31,8 @@ The default task workflow is `Todo -> In Progress -> Done`. Notes and reminders 
 
 Milestone 1 is complete. The WXT/React New Tab shell, domain/application layers,
 normalized IndexedDB persistence, unpacked Chrome journey, reopen persistence,
-and offline boundary all pass. Milestone 2 is ready to start.
+and offline boundary all pass. Milestone 2 implementation and automated gates
+are complete; real unpacked-Chrome acceptance remains pending.
 
 ## Documentation map
 
@@ -62,8 +63,10 @@ M1 completed and verified this vertical slice:
 Open New Tab -> create Goal -> add Phase -> add Task -> move Task -> reopen -> data remains
 ```
 
-M2 is next: checklist items and the personal notes inbox. See
-`docs/ROADMAP.md` for its scope and acceptance gates.
+M2 adds checklist items and the personal notes inbox. Its implementation passes
+the configured type-check, test, and build gates, but it is not accepted until
+the real unpacked-Chrome scenarios in `docs/qa/M2_TEST_PLAN.md` pass. See
+`docs/ROADMAP.md` for scope and release status.
 
 ## Local development
 

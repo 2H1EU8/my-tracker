@@ -15,9 +15,11 @@ import {
   XIcon,
 } from "@phosphor-icons/react";
 import {
+  type Dispatch,
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
+  type SetStateAction,
   useCallback,
   useEffect,
   useId,
@@ -30,6 +32,8 @@ import { DomainError } from "../../domain/errors";
 import {
   TASK_STATUSES,
   type ChecklistItem,
+  type ChecklistProgress,
+  type ChecklistProgressByTask,
   type Goal,
   type GoalTree,
   type InboxSnapshot,
@@ -38,6 +42,7 @@ import {
   type Phase,
   type PhaseTree,
   type Task,
+  type TaskChecklistSnapshot,
   type TaskStatus,
   type WorkspaceSnapshot,
 } from "../../domain/model";
@@ -71,7 +76,7 @@ interface EntityDialogProps {
   initialValue?: string;
   inputId: string;
   label: string;
-  onSubmit: (title: string) => Promise<void>;
+  onSubmit: (title: string) => Promise<unknown>;
   placeholder: string;
   submitLabel: string;
   triggerClassName?: string;
@@ -142,6 +147,17 @@ function linkTargetForDraft(draft: LinkDraft): NoteLinkTarget {
     "invalid_note_link",
     `Choose a ${draft.kind} to link, or select No link.`,
   );
+}
+
+function noteMatchesLinkDraft(note: Note, draft: LinkDraft): boolean {
+  switch (draft.kind) {
+    case "none":
+      return note.linkedGoalId === undefined && note.linkedTaskId === undefined;
+    case "goal":
+      return note.linkedGoalId === draft.goalId;
+    case "task":
+      return note.linkedTaskId === draft.taskId;
+  }
 }
 
 function noteLinkLabel(
@@ -514,6 +530,10 @@ export function TrackerApp({ service }: TrackerAppProps) {
   const [workspaceLoadError, setWorkspaceLoadError] = useState<string>();
   const [inbox, setInbox] = useState<InboxSnapshot>();
   const [inboxLoadError, setInboxLoadError] = useState<string>();
+  const [checklistProgress, setChecklistProgress] =
+    useState<ChecklistProgressByTask>();
+  const [checklistProgressLoadError, setChecklistProgressLoadError] =
+    useState<string>();
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [announcement, setAnnouncement] = useState("");
   const [urgentAnnouncement, setUrgentAnnouncement] = useState("");
@@ -545,6 +565,18 @@ export function TrackerApp({ service }: TrackerAppProps) {
     }
   }, [service]);
 
+  const refreshChecklistProgress = useCallback(async () => {
+    try {
+      setChecklistProgress(await service.getChecklistProgress());
+      setChecklistProgressLoadError(undefined);
+    } catch (error) {
+      setChecklistProgressLoadError(
+        "Checklist summaries could not be loaded. Task details can still retry.",
+      );
+      throw error;
+    }
+  }, [service]);
+
   const loadWorkspace = useCallback(async () => {
     setAnnouncement("");
     try {
@@ -563,10 +595,21 @@ export function TrackerApp({ service }: TrackerAppProps) {
     }
   }, [refreshInbox]);
 
+  const loadChecklistProgress = useCallback(async () => {
+    try {
+      await refreshChecklistProgress();
+    } catch {
+      setAnnouncement(
+        "Checklist summaries could not be loaded. Retry from the goal board.",
+      );
+    }
+  }, [refreshChecklistProgress]);
+
   useEffect(() => {
     void loadWorkspace();
     void loadInbox();
-  }, [loadInbox, loadWorkspace]);
+    void loadChecklistProgress();
+  }, [loadChecklistProgress, loadInbox, loadWorkspace]);
 
   useEffect(() => {
     if (saveState !== "saved") {
@@ -602,8 +645,6 @@ export function TrackerApp({ service }: TrackerAppProps) {
     [service],
   );
 
-  const noRefresh = useCallback(async () => undefined, []);
-
   const performMutation = useCallback(
     async <T,>(
       action: () => Promise<T>,
@@ -628,7 +669,7 @@ export function TrackerApp({ service }: TrackerAppProps) {
           setSaveState("idle");
           throw error;
         }
-        setSaveState("failed");
+        setSaveState(retryMode === "local" ? "idle" : "failed");
         setRetryOperation(
           retryMode === "global"
             ? {
@@ -808,6 +849,8 @@ export function TrackerApp({ service }: TrackerAppProps) {
           />
         ) : (
           <GoalView
+            checklistProgress={checklistProgress}
+            checklistProgressError={checklistProgressLoadError}
             goalTree={selectedGoal}
             onBack={() => {
               setSelectedGoalId(undefined);
@@ -860,7 +903,7 @@ export function TrackerApp({ service }: TrackerAppProps) {
                 "Checklist item added.",
                 undefined,
                 "local",
-                noRefresh,
+                refreshChecklistProgress,
               )
             }
             onGetTaskChecklist={getTaskChecklist}
@@ -872,6 +915,7 @@ export function TrackerApp({ service }: TrackerAppProps) {
                   return `${task.title} moved to ${STATUS_LABELS[status]}, position ${moved.position + 1}.`;
                 },
                 () => `[data-task-id="${task.id}"]`,
+                "local",
               )
             }
             onRenameGoal={(title) =>
@@ -906,6 +950,7 @@ export function TrackerApp({ service }: TrackerAppProps) {
                   return `${task.title} moved ${placement} ${target.title}, position ${moved.position + 1}.`;
                 },
                 () => `[data-task-id="${task.id}"]`,
+                "local",
               )
             }
             onSelectPhase={setSelectedPhaseId}
@@ -920,9 +965,10 @@ export function TrackerApp({ service }: TrackerAppProps) {
                 isCompleted ? "Checklist item completed." : "Checklist item reopened.",
                 undefined,
                 "local",
-                noRefresh,
+                refreshChecklistProgress,
               )
             }
+            onRetryChecklistProgress={loadChecklistProgress}
             selectedPhase={selectedPhase}
           />
         )}
@@ -944,7 +990,7 @@ interface HomeViewProps {
   inbox: InboxSnapshot | undefined;
   inboxError: string | undefined;
   onCreateNote: (body: string, linkTarget: NoteLinkTarget) => Promise<Note>;
-  onCreateGoal: (title: string) => Promise<void>;
+  onCreateGoal: (title: string) => Promise<unknown>;
   onDeleteNote: (note: Note) => Promise<Note>;
   onEditNote: (
     note: Note,
@@ -952,7 +998,7 @@ interface HomeViewProps {
     linkTarget: NoteLinkTarget,
   ) => Promise<Note>;
   onOpenGoal: (goal: GoalTree) => void;
-  onRenameGoal: (goal: Goal, title: string) => Promise<void>;
+  onRenameGoal: (goal: Goal, title: string) => Promise<unknown>;
   onReorderNote: (
     note: Note,
     target: Note,
@@ -1151,7 +1197,7 @@ function QuickNoteComposer({
         <button
           aria-expanded={isLinkOpen}
           className="link-disclosure"
-          disabled={isSaving}
+          disabled={!isReady || isSaving}
           onClick={() => setIsLinkOpen((current) => !current)}
           type="button"
         >
@@ -1219,7 +1265,10 @@ function InboxView({
     <section aria-labelledby="inbox-title" className="inbox-section">
       <div className="section-heading inbox-heading">
         <h2 id="inbox-title">Inbox</h2>
-        <span aria-label={`${notes?.length ?? 0} notes`} className="task-count">
+        <span
+          aria-label={notes === undefined ? "Loading notes" : `${notes.length} notes`}
+          className="task-count"
+        >
           {notes === undefined ? "—" : notes.length}
         </span>
       </div>
@@ -1334,11 +1383,13 @@ function NoteEditorDialog({
   );
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string>();
+  const [showDiscardConfirmation, setShowDiscardConfirmation] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const errorId = `edit-note-${note.id}-error`;
+  const isDirty = body !== note.body || !noteMatchesLinkDraft(note, linkDraft);
 
   useEffect(() => {
     if (isOpen && dialogRef.current !== null && !dialogRef.current.open) {
@@ -1353,7 +1404,19 @@ function NoteEditorDialog({
     setLinkDraft(nextLink);
     setIsLinkOpen(nextLink.kind !== "none");
     setError(undefined);
+    setShowDiscardConfirmation(false);
     setIsOpen(true);
+  }
+
+  function requestClose() {
+    if (isSaving) {
+      return;
+    }
+    if (isDirty) {
+      setShowDiscardConfirmation(true);
+      return;
+    }
+    dialogRef.current?.close();
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -1391,13 +1454,17 @@ function NoteEditorDialog({
           aria-labelledby={`edit-note-${note.id}-title`}
           className="entity-dialog note-editor-dialog"
           onCancel={(event) => {
-            if (isSaving) {
+            if (isSaving || isDirty) {
               event.preventDefault();
+              if (!isSaving) {
+                setShowDiscardConfirmation(true);
+              }
             }
           }}
           onClose={() => {
             setIsOpen(false);
             setError(undefined);
+            setShowDiscardConfirmation(false);
             requestAnimationFrame(() => triggerRef.current?.focus());
           }}
           ref={dialogRef}
@@ -1409,7 +1476,7 @@ function NoteEditorDialog({
                 aria-label="Close edit note"
                 className="icon-button dialog-close"
                 disabled={isSaving}
-                onClick={() => dialogRef.current?.close()}
+                onClick={requestClose}
                 title="Close"
                 type="button"
               >
@@ -1458,13 +1525,39 @@ function NoteEditorDialog({
               </p>
             )}
             <div className="dialog-actions">
-              <button disabled={isSaving} onClick={() => dialogRef.current?.close()} type="button">
+              <button disabled={isSaving} onClick={requestClose} type="button">
                 Cancel
               </button>
               <button className="button-primary" disabled={isSaving} type="submit">
                 {isSaving ? "Saving…" : error === undefined ? "Save changes" : "Retry"}
               </button>
             </div>
+            {showDiscardConfirmation ? (
+              <section className="discard-checklist-draft" role="alert">
+                <div>
+                  <h3>Discard note changes?</h3>
+                  <p>Your unsaved note draft and link choice will be lost.</p>
+                </div>
+                <div className="dialog-actions">
+                  <button
+                    onClick={() => {
+                      setShowDiscardConfirmation(false);
+                      requestAnimationFrame(() => inputRef.current?.focus());
+                    }}
+                    type="button"
+                  >
+                    Keep editing
+                  </button>
+                  <button
+                    className="button-danger"
+                    onClick={() => dialogRef.current?.close()}
+                    type="button"
+                  >
+                    Discard changes
+                  </button>
+                </div>
+              </section>
+            ) : null}
           </form>
         </dialog>
       ) : null}
@@ -1552,6 +1645,9 @@ function NoteActionsDialog({
       </button>
       {isOpen ? (
         <dialog
+          aria-describedby={
+            view === "delete" ? `note-delete-${note.id}-consequence` : undefined
+          }
           aria-labelledby={`note-actions-${note.id}-title`}
           className="entity-dialog note-actions-dialog"
           onCancel={(event) => {
@@ -1640,7 +1736,9 @@ function NoteActionsDialog({
               </>
             ) : (
               <div className="delete-confirmation">
-                <p>This permanently deletes this note. This action cannot be undone.</p>
+                <p id={`note-delete-${note.id}-consequence`}>
+                  This permanently deletes this note. This action cannot be undone.
+                </p>
                 <div className="dialog-actions">
                   <button
                     disabled={isMutating}
@@ -1676,34 +1774,50 @@ function NoteActionsDialog({
 }
 
 interface GoalViewProps {
+  checklistProgress: ChecklistProgressByTask | undefined;
+  checklistProgressError: string | undefined;
   goalTree: GoalTree;
   onBack: () => void;
-  onCreatePhase: (title: string) => Promise<void>;
-  onCreateTask: (title: string) => Promise<void>;
-  onMoveTask: (task: Task, status: TaskStatus) => Promise<void>;
-  onRenameGoal: (title: string) => Promise<void>;
-  onRenamePhase: (phase: Phase, title: string) => Promise<void>;
-  onRenameTask: (task: Task, title: string) => Promise<void>;
+  onCreateChecklistItem: (taskId: string, title: string) => Promise<ChecklistItem>;
+  onCreatePhase: (title: string) => Promise<unknown>;
+  onCreateTask: (title: string) => Promise<unknown>;
+  onGetTaskChecklist: (taskId: string) => Promise<TaskChecklistSnapshot>;
+  onMoveTask: (task: Task, status: TaskStatus) => Promise<unknown>;
+  onRenameGoal: (title: string) => Promise<unknown>;
+  onRenamePhase: (phase: Phase, title: string) => Promise<unknown>;
+  onRenameTask: (task: Task, title: string) => Promise<unknown>;
   onReorderTask: (
     task: Task,
     target: Task,
     placement: ReorderPlacement,
-  ) => Promise<void>;
+  ) => Promise<unknown>;
   onSelectPhase: (phaseId: string) => void;
+  onSetChecklistItemCompleted: (
+    taskId: string,
+    checklistItemId: string,
+    isCompleted: boolean,
+  ) => Promise<ChecklistItem>;
+  onRetryChecklistProgress: () => Promise<void>;
   selectedPhase: PhaseTree | undefined;
 }
 
 function GoalView({
+  checklistProgress,
+  checklistProgressError,
   goalTree,
   onBack,
+  onCreateChecklistItem,
   onCreatePhase,
   onCreateTask,
+  onGetTaskChecklist,
   onMoveTask,
   onRenameGoal,
   onRenamePhase,
   onRenameTask,
   onReorderTask,
   onSelectPhase,
+  onSetChecklistItemCompleted,
+  onRetryChecklistProgress,
   selectedPhase,
 }: GoalViewProps) {
   return (
@@ -1745,6 +1859,15 @@ function GoalView({
         />
       </div>
 
+      {checklistProgressError === undefined ? null : (
+        <div className="error-banner section-error checklist-summary-error">
+          <p>{checklistProgressError}</p>
+          <button onClick={() => void onRetryChecklistProgress()} type="button">
+            Retry checklist summaries
+          </button>
+        </div>
+      )}
+
       {goalTree.phases.length === 0 ? (
         <div className="empty-state">
           <h2>Add a phase to organize this goal</h2>
@@ -1768,11 +1891,15 @@ function GoalView({
           </nav>
           {selectedPhase === undefined ? null : (
             <Board
+              checklistProgress={checklistProgress}
+              onCreateChecklistItem={onCreateChecklistItem}
               onCreateTask={onCreateTask}
+              onGetTaskChecklist={onGetTaskChecklist}
               onMoveTask={onMoveTask}
               onRenamePhase={(title) => onRenamePhase(selectedPhase.phase, title)}
               onRenameTask={onRenameTask}
               onReorderTask={onReorderTask}
+              onSetChecklistItemCompleted={onSetChecklistItemCompleted}
               phaseTree={selectedPhase}
             />
           )}
@@ -1783,24 +1910,36 @@ function GoalView({
 }
 
 interface BoardProps {
+  checklistProgress: ChecklistProgressByTask | undefined;
   phaseTree: PhaseTree;
-  onCreateTask: (title: string) => Promise<void>;
-  onMoveTask: (task: Task, status: TaskStatus) => Promise<void>;
-  onRenamePhase: (title: string) => Promise<void>;
-  onRenameTask: (task: Task, title: string) => Promise<void>;
+  onCreateChecklistItem: (taskId: string, title: string) => Promise<ChecklistItem>;
+  onCreateTask: (title: string) => Promise<unknown>;
+  onGetTaskChecklist: (taskId: string) => Promise<TaskChecklistSnapshot>;
+  onMoveTask: (task: Task, status: TaskStatus) => Promise<unknown>;
+  onRenamePhase: (title: string) => Promise<unknown>;
+  onRenameTask: (task: Task, title: string) => Promise<unknown>;
   onReorderTask: (
     task: Task,
     target: Task,
     placement: ReorderPlacement,
-  ) => Promise<void>;
+  ) => Promise<unknown>;
+  onSetChecklistItemCompleted: (
+    taskId: string,
+    checklistItemId: string,
+    isCompleted: boolean,
+  ) => Promise<ChecklistItem>;
 }
 
 function Board({
+  checklistProgress,
+  onCreateChecklistItem,
   onCreateTask,
+  onGetTaskChecklist,
   onMoveTask,
   onRenamePhase,
   onRenameTask,
   onReorderTask,
+  onSetChecklistItemCompleted,
   phaseTree,
 }: BoardProps) {
   return (
@@ -1853,11 +1992,15 @@ function Board({
                 <div className="task-list">
                   {tasks.map((task, index) => (
                     <TaskCard
+                      checklistProgress={checklistProgress?.[task.id]}
                       key={task.id}
                       nextTask={tasks[index + 1]}
+                      onCreateChecklistItem={onCreateChecklistItem}
+                      onGetTaskChecklist={onGetTaskChecklist}
                       onMoveTask={onMoveTask}
                       onRenameTask={onRenameTask}
                       onReorderTask={onReorderTask}
+                      onSetChecklistItemCompleted={onSetChecklistItemCompleted}
                       previousTask={tasks[index - 1]}
                       task={task}
                     />
@@ -1873,23 +2016,35 @@ function Board({
 }
 
 interface TaskCardProps {
+  checklistProgress: ChecklistProgress | undefined;
   task: Task;
   previousTask: Task | undefined;
   nextTask: Task | undefined;
-  onMoveTask: (task: Task, status: TaskStatus) => Promise<void>;
-  onRenameTask: (task: Task, title: string) => Promise<void>;
+  onCreateChecklistItem: (taskId: string, title: string) => Promise<ChecklistItem>;
+  onGetTaskChecklist: (taskId: string) => Promise<TaskChecklistSnapshot>;
+  onMoveTask: (task: Task, status: TaskStatus) => Promise<unknown>;
+  onRenameTask: (task: Task, title: string) => Promise<unknown>;
   onReorderTask: (
     task: Task,
     target: Task,
     placement: ReorderPlacement,
-  ) => Promise<void>;
+  ) => Promise<unknown>;
+  onSetChecklistItemCompleted: (
+    taskId: string,
+    checklistItemId: string,
+    isCompleted: boolean,
+  ) => Promise<ChecklistItem>;
 }
 
 function TaskCard({
+  checklistProgress,
   nextTask,
+  onCreateChecklistItem,
+  onGetTaskChecklist,
   onMoveTask,
   onRenameTask,
   onReorderTask,
+  onSetChecklistItemCompleted,
   previousTask,
   task,
 }: TaskCardProps) {
@@ -1897,10 +2052,29 @@ function TaskCard({
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
   const [actionError, setActionError] = useState<string>();
+  const [retryTaskAction, setRetryTaskAction] = useState<
+    (() => Promise<unknown>) | undefined
+  >();
+  const [checklistState, setChecklistState] = useState<ChecklistLoadState>({
+    status: "loading",
+  });
   const isMutatingRef = useRef(false);
   const actionsDialogRef = useRef<HTMLDialogElement>(null);
   const actionsTriggerRef = useRef<HTMLButtonElement>(null);
   const mutationReasonId = `${actionReasonId}-pending`;
+
+  const refreshChecklist = useCallback(async () => {
+    setChecklistState({ status: "loading" });
+    try {
+      const snapshot = await onGetTaskChecklist(task.id);
+      const items = sortByPosition(snapshot.checklistItems);
+      setChecklistState({ status: "loaded", items });
+      return items;
+    } catch (error) {
+      setChecklistState({ status: "failed", error: getErrorMessage(error) });
+      throw error;
+    }
+  }, [onGetTaskChecklist, task.id]);
 
   useEffect(() => {
     if (!isActionsOpen) {
@@ -1918,7 +2092,7 @@ function TaskCard({
     }
   }
 
-  async function runTaskMutation(action: () => Promise<void>) {
+  async function runTaskMutation(action: () => Promise<unknown>) {
     if (isMutatingRef.current) {
       return;
     }
@@ -1926,8 +2100,10 @@ function TaskCard({
     isMutatingRef.current = true;
     setIsMutating(true);
     setActionError(undefined);
+    setRetryTaskAction(() => action);
     try {
       await action();
+      setRetryTaskAction(undefined);
       actionsDialogRef.current?.close();
     } catch (error) {
       setActionError(getErrorMessage(error));
@@ -1937,10 +2113,25 @@ function TaskCard({
     }
   }
 
+  const visibleChecklistProgress =
+    checklistState.status === "loaded"
+      ? {
+          completed: checklistState.items.filter((item) => item.isCompleted).length,
+          total: checklistState.items.length,
+        }
+      : checklistProgress;
+
   return (
     <article className="task-card" data-task-id={task.id} tabIndex={-1}>
       <div className="task-card-header">
-        <h4>{task.title}</h4>
+        <TaskDetailsDialog
+          checklistState={checklistState}
+          onCreateChecklistItem={onCreateChecklistItem}
+          onRefreshChecklist={refreshChecklist}
+          onSetChecklistItemCompleted={onSetChecklistItemCompleted}
+          setChecklistState={setChecklistState}
+          task={task}
+        />
         <div className="card-actions">
           <EntityDialog
             dialogTitle="Rename task"
@@ -1960,6 +2151,7 @@ function TaskCard({
             data-tooltip="Task actions"
             onClick={() => {
               setActionError(undefined);
+              setRetryTaskAction(undefined);
               setIsActionsOpen(true);
             }}
             ref={actionsTriggerRef}
@@ -1970,6 +2162,15 @@ function TaskCard({
           </button>
         </div>
       </div>
+      {visibleChecklistProgress !== undefined && visibleChecklistProgress.total > 0 ? (
+        <p className="task-checklist-progress">
+          <ListChecksIcon aria-hidden="true" size={17} />
+          {visibleChecklistProgress.completed} / {visibleChecklistProgress.total} complete
+        </p>
+      ) : null}
+      {checklistState.status === "failed" ? (
+        <p className="task-checklist-load-error">Checklist unavailable. Open task details to retry.</p>
+      ) : null}
       {isActionsOpen ? (
         <dialog
           aria-labelledby={`${actionReasonId}-title`}
@@ -1982,6 +2183,7 @@ function TaskCard({
           onClose={() => {
             setIsActionsOpen(false);
             setActionError(undefined);
+            setRetryTaskAction(undefined);
             requestAnimationFrame(() => actionsTriggerRef.current?.focus());
           }}
           ref={actionsDialogRef}
@@ -2088,11 +2290,361 @@ function TaskCard({
               </div>
             </fieldset>
             {actionError === undefined ? null : (
-              <p className="field-error">{actionError}</p>
+              <div className="task-action-error">
+                <p className="field-error">{actionError}</p>
+                {retryTaskAction === undefined ? null : (
+                  <button
+                    onClick={() => void runTaskMutation(retryTaskAction)}
+                    type="button"
+                  >
+                    Retry last action
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </dialog>
       ) : null}
     </article>
+  );
+}
+
+interface TaskDetailsDialogProps {
+  checklistState: ChecklistLoadState;
+  onCreateChecklistItem: (taskId: string, title: string) => Promise<ChecklistItem>;
+  onRefreshChecklist: () => Promise<ChecklistItem[]>;
+  onSetChecklistItemCompleted: (
+    taskId: string,
+    checklistItemId: string,
+    isCompleted: boolean,
+  ) => Promise<ChecklistItem>;
+  setChecklistState: Dispatch<SetStateAction<ChecklistLoadState>>;
+  task: Task;
+}
+
+function TaskDetailsDialog({
+  checklistState,
+  onCreateChecklistItem,
+  onRefreshChecklist,
+  onSetChecklistItemCompleted,
+  setChecklistState,
+  task,
+}: TaskDetailsDialogProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isOpening, setIsOpening] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [createError, setCreateError] = useState<string>();
+  const [pendingToggleIds, setPendingToggleIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [toggleErrors, setToggleErrors] = useState<Record<string, string | undefined>>(
+    {},
+  );
+  const [showDiscardConfirmation, setShowDiscardConfirmation] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const titleId = `task-details-${task.id}-title`;
+  const inputId = `checklist-${task.id}-title`;
+  const createErrorId = `checklist-${task.id}-error`;
+  const items = checklistState.status === "loaded" ? checklistState.items : [];
+  const completedCount = items.filter((item) => item.isCompleted).length;
+  const isBusy = isOpening || pendingToggleIds.size > 0;
+
+  useEffect(() => {
+    if (!isOpen || dialogRef.current === null || dialogRef.current.open) {
+      return;
+    }
+
+    dialogRef.current.showModal();
+    requestAnimationFrame(() => {
+      if (items.length === 0) {
+        inputRef.current?.focus();
+      } else {
+        headingRef.current?.focus();
+      }
+    });
+  }, [isOpen, items.length]);
+
+  async function openDetails() {
+    if (isOpening) {
+      return;
+    }
+
+    setIsOpening(true);
+    try {
+      if (checklistState.status !== "loaded") {
+        await onRefreshChecklist();
+      }
+      setCreateError(undefined);
+      setToggleErrors({});
+      setShowDiscardConfirmation(false);
+      setIsOpen(true);
+    } catch {
+      // The card keeps a recoverable checklist-loading message and title retry target.
+    } finally {
+      setIsOpening(false);
+    }
+  }
+
+  function closeWithoutDiscarding() {
+    if (isBusy) {
+      return;
+    }
+    if (draft.trim().length > 0) {
+      setShowDiscardConfirmation(true);
+      return;
+    }
+    dialogRef.current?.close();
+  }
+
+  function discardAndClose() {
+    setDraft("");
+    setCreateError(undefined);
+    setShowDiscardConfirmation(false);
+    dialogRef.current?.close();
+  }
+
+  async function createChecklistItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (isOpening) {
+      return;
+    }
+
+    setIsOpening(true);
+    setCreateError(undefined);
+    setShowDiscardConfirmation(false);
+    try {
+      const created = await onCreateChecklistItem(task.id, draft);
+      setChecklistState((current) => ({
+        status: "loaded",
+        items: sortByPosition([
+          ...(current.status === "loaded" ? current.items : []),
+          created,
+        ]),
+      }));
+      setDraft("");
+      requestAnimationFrame(() => {
+        document.getElementById(`checklist-${created.id}-completed`)?.focus();
+      });
+    } catch (error) {
+      setCreateError(getErrorMessage(error));
+      requestAnimationFrame(() => inputRef.current?.focus());
+    } finally {
+      setIsOpening(false);
+    }
+  }
+
+  async function toggleChecklistItem(item: ChecklistItem, isCompleted: boolean) {
+    if (pendingToggleIds.has(item.id)) {
+      return;
+    }
+
+    setPendingToggleIds((current) => new Set(current).add(item.id));
+    setToggleErrors((current) => ({ ...current, [item.id]: undefined }));
+    try {
+      const updated = await onSetChecklistItemCompleted(task.id, item.id, isCompleted);
+      setChecklistState((current) =>
+        current.status === "loaded"
+          ? {
+              status: "loaded",
+              items: current.items.map((candidate) =>
+                candidate.id === updated.id ? updated : candidate,
+              ),
+            }
+          : current,
+      );
+    } catch (error) {
+      setToggleErrors((current) => ({
+        ...current,
+        [item.id]: getErrorMessage(error),
+      }));
+    } finally {
+      setPendingToggleIds((current) => {
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
+      requestAnimationFrame(() => {
+        document.getElementById(`checklist-${item.id}-completed`)?.focus();
+      });
+    }
+  }
+
+  return (
+    <>
+      <h4 className="task-title-heading">
+        <button
+          aria-busy={isOpening}
+          aria-label={`Open task details for ${task.title}`}
+          className="task-title-button"
+          onClick={() => void openDetails()}
+          ref={triggerRef}
+          type="button"
+        >
+          {task.title}
+        </button>
+      </h4>
+      {isOpen ? (
+        <dialog
+          aria-labelledby={titleId}
+          className="task-detail-dialog"
+          onCancel={(event) => {
+            if (isBusy || draft.trim().length > 0) {
+              event.preventDefault();
+              if (!isBusy) {
+                setShowDiscardConfirmation(true);
+              }
+            }
+          }}
+          onClose={() => {
+            setIsOpen(false);
+            setCreateError(undefined);
+            setShowDiscardConfirmation(false);
+            requestAnimationFrame(() => triggerRef.current?.focus());
+          }}
+          ref={dialogRef}
+        >
+          <div className="task-detail-layout">
+            <header className="task-detail-header">
+              <div>
+                <h2 id={titleId} ref={headingRef} tabIndex={-1}>
+                  {task.title}
+                </h2>
+                <p>{STATUS_LABELS[task.status]}</p>
+              </div>
+              <button
+                aria-label="Close task details"
+                className="icon-button dialog-close"
+                disabled={isBusy}
+                onClick={closeWithoutDiscarding}
+                title="Close task details"
+                type="button"
+              >
+                <XIcon aria-hidden="true" size={18} weight="bold" />
+              </button>
+            </header>
+
+            <div className="task-detail-content">
+              <div className="checklist-heading">
+                <h3>Checklist</h3>
+                <p aria-live="polite">
+                  {completedCount} / {items.length} complete
+                </p>
+              </div>
+
+              <form
+                aria-busy={isOpening}
+                className="checklist-create-form"
+                onSubmit={createChecklistItem}
+                ref={formRef}
+              >
+                <label htmlFor={inputId}>Add checklist item</label>
+                <div className="checklist-create-row">
+                  <input
+                    aria-describedby={createError === undefined ? undefined : createErrorId}
+                    aria-invalid={createError === undefined ? undefined : true}
+                    id={inputId}
+                    onChange={(event) => setDraft(event.currentTarget.value)}
+                    placeholder="A small next step"
+                    readOnly={isOpening}
+                    ref={inputRef}
+                    value={draft}
+                  />
+                  <button className="button-primary" disabled={isOpening} type="submit">
+                    <PlusIcon aria-hidden="true" size={18} weight="bold" />
+                    {isOpening
+                      ? "Adding…"
+                      : createError === undefined
+                        ? "Add item"
+                        : "Retry"}
+                  </button>
+                </div>
+                {createError === undefined ? null : (
+                  <p className="field-error" id={createErrorId}>
+                    {createError}
+                  </p>
+                )}
+              </form>
+
+              {items.length === 0 ? (
+                <p className="checklist-empty">
+                  No checklist items yet. Add the first step.
+                </p>
+              ) : (
+                <div className="checklist-list">
+                  {items.map((item) => {
+                    const isPending = pendingToggleIds.has(item.id);
+                    const error = toggleErrors[item.id];
+                    return (
+                      <div className="checklist-row" key={item.id}>
+                        <label>
+                          <input
+                            checked={item.isCompleted}
+                            disabled={isPending}
+                            id={`checklist-${item.id}-completed`}
+                            onChange={(event) =>
+                              void toggleChecklistItem(item, event.currentTarget.checked)
+                            }
+                            type="checkbox"
+                          />
+                          <span>{item.title}</span>
+                          {item.isCompleted ? (
+                            <span className="checklist-state">Completed</span>
+                          ) : null}
+                        </label>
+                        {isPending ? (
+                          <p className="checklist-row-state" role="status">
+                            Saving…
+                          </p>
+                        ) : null}
+                        {error === undefined ? null : (
+                          <div className="checklist-row-error">
+                            <p className="field-error">{error}</p>
+                            <button
+                              onClick={() =>
+                                void toggleChecklistItem(item, !item.isCompleted)
+                              }
+                              type="button"
+                            >
+                              Retry
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {showDiscardConfirmation ? (
+                <section className="discard-checklist-draft" role="alert">
+                  <div>
+                    <h3>Discard checklist draft?</h3>
+                    <p>Your unsaved checklist text will be lost.</p>
+                  </div>
+                  <div className="dialog-actions">
+                    <button
+                      onClick={() => {
+                        setShowDiscardConfirmation(false);
+                        requestAnimationFrame(() => inputRef.current?.focus());
+                      }}
+                      type="button"
+                    >
+                      Keep editing
+                    </button>
+                    <button className="button-danger" onClick={discardAndClose} type="button">
+                      Discard and close
+                    </button>
+                  </div>
+                </section>
+              ) : null}
+            </div>
+          </div>
+        </dialog>
+      ) : null}
+    </>
   );
 }

@@ -243,6 +243,51 @@ describe("IndexedDbTrackerDatabase", () => {
     await reopened.database.close();
   });
 
+  it("retries a blocked v1 to v2 upgrade through the same adapter", async () => {
+    const name = `my-tracker-blocked-upgrade-${databaseSequence}`;
+    const goal: Goal = {
+      id: "blocked-goal",
+      title: "Blocked upgrade goal",
+      status: "active",
+      position: 0,
+      createdAt: "2026-08-28T07:00:00.000Z",
+      updatedAt: "2026-08-28T07:00:00.000Z",
+    };
+    const phase: Phase = {
+      id: "blocked-phase",
+      goalId: goal.id,
+      title: "Blocked phase",
+      position: 0,
+      createdAt: "2026-08-28T07:01:00.000Z",
+      updatedAt: "2026-08-28T07:01:00.000Z",
+    };
+    const task: Task = {
+      id: "blocked-task",
+      goalId: goal.id,
+      phaseId: phase.id,
+      title: "Blocked task",
+      status: "todo",
+      priority: "medium",
+      position: 0,
+      notifyAtDue: true,
+      createdAt: "2026-08-28T07:02:00.000Z",
+      updatedAt: "2026-08-28T07:02:00.000Z",
+    };
+    await seedVersionOneDatabase(name, { goal, phase, task });
+
+    const blockerRequest = indexedDB.open(name, 1);
+    await requestCompletion(blockerRequest);
+    const blocker = blockerRequest.result;
+    const upgraded = createFixture(name);
+
+    await expect(upgraded.service.getInbox()).rejects.toThrow("upgrade is blocked");
+    blocker.close();
+
+    await expect(upgraded.service.getInbox()).resolves.toEqual({ items: [] });
+    expect((await upgraded.service.getWorkspace()).goals[0]?.goal).toEqual(goal);
+    await upgraded.database.close();
+  });
+
   it("rolls back writes when an operation fails before transaction commit", async () => {
     const { database, service } = createFixture();
     const goal = await service.createGoal("Goal");

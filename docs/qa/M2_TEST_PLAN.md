@@ -2,11 +2,15 @@
 
 ## Status
 
-`Planned — not executed.` This plan is ready for execution after Design and Dev
-complete the handoffs required by
+`Automation passed — real Chrome execution pending.` Design and Dev have
+completed the implementation handoff in
 [`docs/work-items/M2_CHECKLIST_PERSONAL_INBOX.md`](../work-items/M2_CHECKLIST_PERSONAL_INBOX.md).
-M2 remains blocked from a QA Pass recommendation until every acceptance
-criterion has independent evidence from the exact production build.
+On 2026-08-31, `pnpm typecheck`, 18 unit tests, 10 integration tests, the full
+28-test suite, `pnpm build`, and `git diff --check` passed. M2 remains blocked
+from a QA Pass recommendation until every applicable scenario below has
+independent evidence from the exact production build in `.output/chrome-mv3`.
+The executing QA owner must record the reviewed commit and artifact hashes;
+the current working-tree handoff is deliberately not assigned release hashes.
 
 ## Objective
 

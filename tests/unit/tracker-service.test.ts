@@ -275,6 +275,9 @@ describe("TrackerService", () => {
       true,
       false,
     ]);
+    expect(await service.getChecklistProgress()).toEqual({
+      [task.id]: { completed: 1, total: 2 },
+    });
 
     await service.moveTaskToStatus(task.id, "done");
     const afterTaskDone = await service.getTaskChecklist(task.id);
@@ -283,6 +286,9 @@ describe("TrackerService", () => {
       true,
       false,
     ]);
+    expect(await service.getChecklistProgress()).toEqual({
+      [task.id]: { completed: 1, total: 2 },
+    });
   });
 
   it("rejects checklist parent mismatches and missing parents without writes", async () => {

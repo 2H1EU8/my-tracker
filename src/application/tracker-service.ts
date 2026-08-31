@@ -1,6 +1,7 @@
 import { DomainError } from "../domain/errors";
 import type {
   ChecklistItem,
+  ChecklistProgressByTask,
   Goal,
   InboxSnapshot,
   Note,
@@ -142,6 +143,24 @@ export class TrackerService {
             await repositories.checklistItems.listByTask(taskId),
           ),
         };
+      },
+    );
+  }
+
+  async getChecklistProgress(): Promise<ChecklistProgressByTask> {
+    return this.database.transaction(
+      ["checklistItems"],
+      "readonly",
+      async (repositories) => {
+        const progress: ChecklistProgressByTask = {};
+        for (const item of await repositories.checklistItems.list()) {
+          const current = progress[item.taskId] ?? { completed: 0, total: 0 };
+          progress[item.taskId] = {
+            completed: current.completed + (item.isCompleted ? 1 : 0),
+            total: current.total + 1,
+          };
+        }
+        return progress;
       },
     );
   }

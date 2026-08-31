@@ -3,7 +3,8 @@
 ## Status
 
 Baseline approved for MVP delivery. Milestone 1 is complete with 22 passing
-acceptance criteria; Milestone 2 is ready to start.
+acceptance criteria. Milestone 2 implementation passes the configured automated
+gates, with real unpacked-Chrome acceptance still pending.
 
 ## Actors
 

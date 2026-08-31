@@ -54,6 +54,7 @@ function transactionResult(transaction: IDBTransaction): Promise<void> {
 function openDatabase(factory: IDBFactory, name: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = factory.open(name, TRACKER_DATABASE_VERSION);
+    let settled = false;
 
     request.addEventListener("upgradeneeded", () => {
       const database = request.result;
@@ -111,15 +112,37 @@ function openDatabase(factory: IDBFactory, name: string): Promise<IDBDatabase> {
       }
     });
 
-    request.addEventListener("success", () => resolve(request.result), { once: true });
+    request.addEventListener(
+      "success",
+      () => {
+        if (settled) {
+          request.result.close();
+          return;
+        }
+        settled = true;
+        request.result.addEventListener("versionchange", () => request.result.close());
+        resolve(request.result);
+      },
+      { once: true },
+    );
     request.addEventListener(
       "error",
-      () => reject(request.error ?? new Error("Could not open IndexedDB.")),
+      () => {
+        if (!settled) {
+          settled = true;
+          reject(request.error ?? new Error("Could not open IndexedDB."));
+        }
+      },
       { once: true },
     );
     request.addEventListener(
       "blocked",
-      () => reject(new Error("IndexedDB upgrade is blocked by another open page.")),
+      () => {
+        if (!settled) {
+          settled = true;
+          reject(new Error("IndexedDB upgrade is blocked by another open page."));
+        }
+      },
       { once: true },
     );
   });
@@ -362,7 +385,15 @@ export class IndexedDbTrackerDatabase implements TrackerDatabase {
   }
 
   private getConnection(): Promise<IDBDatabase> {
-    this.connectionPromise ??= openDatabase(this.factory, this.name);
+    if (this.connectionPromise === undefined) {
+      const connection = openDatabase(this.factory, this.name);
+      this.connectionPromise = connection;
+      void connection.catch(() => {
+        if (this.connectionPromise === connection) {
+          this.connectionPromise = undefined;
+        }
+      });
+    }
     return this.connectionPromise;
   }
 }

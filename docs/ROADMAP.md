@@ -64,7 +64,8 @@ Exit gate:
 
 ## M2 — Checklist and personal inbox
 
-Status: in progress under the PM-led Design, Dev, and QA handoff.
+Status: implementation complete and automated gates passing; real unpacked-Chrome
+QA remains pending, so M2 is not yet accepted.
 
 Ready work item: [`docs/work-items/M2_CHECKLIST_PERSONAL_INBOX.md`](work-items/M2_CHECKLIST_PERSONAL_INBOX.md)
 
