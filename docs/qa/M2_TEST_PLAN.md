@@ -2,7 +2,7 @@
 
 ## Status
 
-`Q01–Q06 passed — Q07–Q22 pending real Chrome execution.` Design and Dev have
+`Q01–Q015 passed — Q016–Q22 pending real Chrome execution.` Design and Dev have
 completed the implementation handoff in
 [`docs/work-items/M2_CHECKLIST_PERSONAL_INBOX.md`](../work-items/M2_CHECKLIST_PERSONAL_INBOX.md).
 On 2026-09-01, independent QA reran and strengthened the automated evidence:
