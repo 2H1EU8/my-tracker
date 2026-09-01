@@ -1584,6 +1584,10 @@ function HomeView({
             <div className="goal-grid">
               {goals.map((goalTree, index) => {
                 const totalTasks = goalTree.phases.reduce((acc, phase) => acc + phase.tasks.length, 0);
+                const doneTasks = goalTree.phases.reduce((acc, phase) => acc + phase.tasks.filter(t => t.status === 'done').length, 0);
+                const remainingTasks = totalTasks - doneTasks;
+                const progressPercent = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+                const currentPhaseIndex = goalTree.phases.findIndex(p => p.tasks.some(t => t.status !== 'done')) + 1 || goalTree.phases.length;
                 const isEven = index % 2 === 0;
                 const tiltClass = isEven ? "tilt-left" : "tilt-right";
                 
@@ -1609,11 +1613,11 @@ function HomeView({
                       <h2 className="goal-title">{goalTree.goal.title}</h2>
                       
                       <div className="goal-progress-track">
-                        <div className="goal-progress-fill" style={{ width: totalTasks > 0 ? '50%' : '0%' }}></div>
+                        <div className="goal-progress-fill" style={{ width: `${progressPercent}%` }}></div>
                       </div>
                       
                       <p className="goal-meta">
-                        {goalTree.phases.length} phases &middot; {totalTasks} tasks left
+                        phase {currentPhaseIndex} of {goalTree.phases.length} &middot; {remainingTasks} tasks left
                       </p>
                     </div>
                     
@@ -2287,21 +2291,20 @@ function GoalView({
 
   return (
     <section>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '6px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div className="goal-detail-header">
+        <div className="goal-detail-title-row">
           <button
             aria-label="Back to goals"
-            className="icon-button"
-            style={{ border: 'none', padding: '4px' }}
+            className="icon-button goal-back-button"
             onClick={onBack}
             title="Back to goals"
             type="button"
           >
             <ArrowLeftIcon aria-hidden="true" size={20} />
           </button>
-          <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {goalTree.goal.title}
-            <EntityDialog
+          <h3 className="goal-detail-title">{goalTree.goal.title}</h3>
+        </div>
+        <EntityDialog
           dialogTitle="Rename goal"
           initialValue={goalTree.goal.title}
           inputId={`rename-goal-${goalTree.goal.id}`}
@@ -2309,12 +2312,10 @@ function GoalView({
           onSubmit={onRenameGoal}
           placeholder="Goal title"
           submitLabel="Save changes"
-          triggerClassName="inline-edit-button"
-          triggerIcon={<PencilSimpleIcon aria-hidden="true" size={12} style={{marginRight: '6px'}}/>}
+          triggerClassName="goal-edit-button"
+          triggerIcon={<PencilSimpleIcon aria-hidden="true" size={14} />}
           triggerLabel={`Edit goal`}
         />
-          </h3>
-        </div>
       </div>
 
       {checklistProgressError !== undefined ? (
@@ -2496,7 +2497,7 @@ function Board({
                 className="kanban-column-header" 
                 style={{ pointerEvents: dragOverCol === status ? 'none' : 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
               >
-                <h3>{STATUS_LABELS[status]} &middot; {tasks.length}</h3>
+                <h3>{STATUS_LABELS[status].toLowerCase()} &middot; {tasks.length}</h3>
                 <div className="kanban-column-actions">
                   <EntityDialog
                     dialogTitle={`Create task in ${STATUS_LABELS[status]}`}
@@ -2654,10 +2655,9 @@ function TaskCard({
 
   return (
     <article 
-      className={`task-card ${dragOver ? `drag-over-${dragOver}` : ""}`} 
+      className={`task-card ${dragOver ? `drag-over-${dragOver}` : ""} ${task.status === "in_progress" ? "task-card-active" : ""} ${task.status === "done" ? "task-card-done" : ""}`}
       data-task-id={task.id} 
       tabIndex={-1} 
-      style={task.status === "in_progress" ? { border: '2px solid var(--focus)' } : task.status === "done" ? { opacity: 0.7 } : {}}
       data-testid={`task-card-${task.id}`}
       draggable
       onDragStart={(e) => {
@@ -2715,9 +2715,14 @@ function TaskCard({
         </div>
       </div>
       <div style={{ pointerEvents: dragOver ? 'none' : 'auto' }}>
+        {task.dueAt && task.status !== "done" && new Date(task.dueAt) < new Date() && (
+          <p className="task-overdue-label">
+            overdue &middot; was due {new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(new Date(task.dueAt)).toLowerCase()}
+          </p>
+        )}
         {task.status === "in_progress" && visibleChecklistProgress !== undefined && visibleChecklistProgress.total > 0 && (
-          <div style={{ height: '4px', background: 'var(--border)', borderRadius: '2px', marginBottom: '6px', marginTop: '6px' }}>
-             <div style={{ width: `${(visibleChecklistProgress.completed / visibleChecklistProgress.total) * 100}%`, height: '100%', background: 'var(--focus)', borderRadius: '2px' }}></div>
+          <div className="goal-progress-track" style={{ marginTop: '6px', marginBottom: '4px' }}>
+             <div className="goal-progress-fill" style={{ width: `${(visibleChecklistProgress.completed / visibleChecklistProgress.total) * 100}%`, background: 'var(--focus)' }}></div>
           </div>
         )}
         {visibleChecklistProgress !== undefined && visibleChecklistProgress.total > 0 ? (
@@ -2998,7 +3003,7 @@ function TaskDetailsDialog({
         <button
           aria-busy={isOpening}
           aria-label={`Open task details for ${task.title}`}
-          className="task-title-button"
+          className={`task-title-button ${task.status === "done" ? "task-title-done" : ""}`}
           onClick={() => void openDetails()}
           ref={triggerRef}
           type="button"

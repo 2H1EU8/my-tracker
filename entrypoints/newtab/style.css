@@ -438,7 +438,7 @@ h2 {
 
 .task-list {
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
 .task-card {
@@ -1505,18 +1505,26 @@ select[aria-invalid="true"] {
   }
 }
 
-/* New Layout Styles */
+/* ═══════════════════════════════════════════════════════════════
+   REDESIGN: Aligned with reference mockups and design brief.
+   Calm, dark, editorial — borders do hierarchy, no shadows.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Home Layout ──────────────────────────────────────────────── */
+
 .home-layout {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 24px;
 }
 
 .home-columns {
   display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: 16px;
+  grid-template-columns: 220px 1fr;
+  gap: 24px;
 }
+
+/* ── Capture Bar ──────────────────────────────────────────────── */
 
 .capture-bar-form {
   display: flex;
@@ -1525,13 +1533,15 @@ select[aria-invalid="true"] {
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 8px 14px;
-  min-height: 44px;
+  padding: 0 14px;
+  height: 44px;
   transition: border-color var(--motion-fast) var(--motion-ease);
 }
+
 .capture-bar-form:focus-within {
   border-color: var(--focus);
 }
+
 .capture-bar-input {
   flex: 1;
   background: transparent;
@@ -1542,42 +1552,161 @@ select[aria-invalid="true"] {
   min-height: auto;
   outline: none;
 }
+
 .capture-bar-input::placeholder {
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
+
 .shortcut-hint {
-  font-family: ui-monospace, monospace;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   font-size: 11px;
   color: var(--border-strong);
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 2px 6px;
+  line-height: 1;
 }
 
-.inbox-column, .goals-column {
+/* ── Inbox & Goals Columns ────────────────────────────────────── */
+
+.inbox-column,
+.goals-column {
   display: flex;
   flex-direction: column;
 }
 
-.inbox-count-label, .goals-count-label {
+.inbox-count-label,
+.goals-count-label {
   font-size: 12px;
   color: var(--text-secondary);
   margin: 0;
 }
 
-.goals-header-actions, .inbox-header-actions {
+.goals-header-actions,
+.inbox-header-actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  min-height: 32px;
+  min-height: 28px;
+  margin-bottom: 10px;
+}
+
+/* ── Goal Grid ────────────────────────────────────────────────── */
+
+.goal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.goal-pin {
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 0;
+  position: relative;
+  isolation: isolate;
+  transition:
+    border-color var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease);
+}
+
+/* Restore pin pseudo-elements */
+.goal-pin::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: calc(50% - 4px);
+  width: 8px;
+  height: 8px;
+  background: var(--text-muted);
+  opacity: 0.72;
+}
+
+.goal-pin::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: calc(50% - 1px);
+  width: 2px;
+  height: 6px;
+  background: var(--text-muted);
+  opacity: 0.55;
+}
+
+/* Accent left border from note color */
+.note-amber.goal-pin { border-left: 3px solid var(--note-amber); }
+.note-sage.goal-pin   { border-left: 3px solid var(--note-sage); }
+.note-blue.goal-pin   { border-left: 3px solid var(--note-blue); }
+.note-mauve.goal-pin  { border-left: 3px solid var(--note-mauve); }
+.note-clay.goal-pin   { border-left: 3px solid var(--note-clay); }
+
+/* Deterministic tilt — like pinned notes */
+.goal-pin.tilt-left {
+  transform: rotate(-0.6deg);
+}
+
+.goal-pin.tilt-right {
+  transform: rotate(0.6deg);
+}
+
+/* Hover: border change, NOT scale (design plan: "Cards do not lift on hover") */
+.goal-pin:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-3);
+}
+
+.goal-pin.tilt-left:hover {
+  transform: rotate(-0.6deg);
+}
+
+.goal-pin.tilt-right:hover {
+  transform: rotate(0.6deg);
+}
+
+.goal-open-surface {
+  display: flex;
+  flex-direction: column;
+  min-height: 160px;
+  cursor: pointer;
+  padding: 14px;
+  padding-top: 16px;
+}
+
+.goal-title {
+  font-weight: 500;
+  font-size: 14px;
+  margin: 0 0 8px 0;
+  min-height: auto;
+  line-height: 1.35;
+}
+
+.goal-meta {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Progress bar inside goal card */
+.goal-progress-track {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
   margin-bottom: 6px;
 }
 
+.goal-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width var(--motion-standard) var(--motion-ease);
+}
+
+/* New goal button */
 .new-goal-button {
   background: transparent;
   border: 1px dashed var(--border);
   border-radius: 8px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-size: 13px;
   display: flex;
   align-items: center;
@@ -1585,143 +1714,16 @@ select[aria-invalid="true"] {
   gap: 6px;
   min-height: 100px;
   width: 100%;
+  cursor: pointer;
 }
-.new-goal-button:hover {
+
+.new-goal-button:hover:not(:disabled) {
   background: var(--surface-1);
-  color: var(--text);
+  color: var(--text-secondary);
   border-color: var(--border-strong);
 }
 
-.goal-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
-}
-
-.goal-pin {
-  background: var(--surface-2);
-  border-radius: 8px;
-  padding: 16px;
-  position: relative;
-  transition: transform var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease);
-}
-.goal-pin::before, .goal-pin::after {
-  display: none; /* Remove old pin pseudo-elements */
-}
-.goal-pin.tilt-left {
-  transform: rotate(-0.6deg);
-}
-.goal-pin.tilt-right {
-  transform: rotate(0.6deg);
-}
-.goal-pin:hover {
-  transform: scale(1.02);
-  z-index: 10;
-}
-.goal-title {
-  font-weight: 500;
-  font-size: 15px;
-  margin: 0 0 12px 0;
-  min-height: auto;
-}
-.goal-meta {
-  font-family: ui-monospace, monospace;
-  font-size: 11px;
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.note-card {
-  padding: 12px;
-  margin-bottom: 6px;
-}
-.note-body {
-  font-size: 13px;
-  margin: 0 0 6px 0;
-}
-
-/* Kanban Board Styling */
-.board-section {
-  padding-top: 0;
-  border-top: none;
-}
-.board {
-  gap: 8px;
-  padding-bottom: 4px;
-  display: flex;
-  flex-wrap: wrap;
-}
-.kanban-column {
-  flex: 1;
-  min-width: 280px;
-  min-height: 200px;
-  border: none;
-  background: var(--surface-1);
-  border-radius: 8px;
-  padding: 8px;
-}
-.kanban-column > header {
-  background: transparent;
-  border-bottom: none;
-  padding-bottom: 8px;
-  margin-bottom: 12px;
-}
-.kanban-column h3 {
-  font-family: ui-monospace, monospace;
-  font-size: 11px;
-  color: var(--text-secondary);
-  text-transform: lowercase;
-}
-.task-card {
-  padding: 12px;
-  margin-bottom: 6px;
-}
-.task-card-header h4 {
-  font-size: 13px;
-  font-weight: 400;
-  margin-bottom: 6px;
-}
-.task-checklist-progress {
-  font-family: ui-monospace, monospace;
-  font-size: 11px;
-  color: var(--text-secondary);
-  margin: 8px 0 0 0;
-}
-.task-card:focus-within {
-  border-color: var(--focus);
-}
-
-.phase-rail {
-  border-bottom: none;
-  margin-bottom: 6px;
-}
-.phase-rail button {
-  font-size: 12px;
-  padding: 4px 12px;
-  border-radius: 6px;
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--text-secondary);
-  min-height: 32px;
-}
-.phase-rail .phase-active {
-  background: var(--note-clay);
-  color: #4A1B0C;
-  font-weight: 500;
-  border-color: transparent;
-}
-
-.phase-rail button:hover {
-  background: var(--surface-hover);
-}
-.phase-rail .phase-active:hover {
-  background: var(--note-clay);
-  opacity: 0.9;
-}
-
-.phase-rail button:not(.phase-active) {
-  border: 1px solid var(--border);
-}
+/* ── Inbox Notes ──────────────────────────────────────────────── */
 
 .inbox-list-compact {
   display: flex;
@@ -1729,37 +1731,241 @@ select[aria-invalid="true"] {
   gap: 8px;
 }
 
-/* Fixes for long titles and spacing */
+.note-card {
+  padding: 10px 12px;
+  margin-bottom: 0;
+}
+
 .note-body {
+  font-size: 13px;
+  margin: 0 0 4px 0;
   display: -webkit-box;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
   overflow-wrap: anywhere;
 }
 
-.dialog-header p, .task-detail-header h2, .dialog-form p, .delete-confirmation p {
+/* ── Goal Detail Header ──────────────────────────────────────── */
+
+.goal-detail-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  gap: 12px;
+}
+
+.goal-detail-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.goal-back-button {
+  flex: 0 0 auto;
+  border: none !important;
+  padding: 4px !important;
+  min-height: 36px !important;
+  width: 36px !important;
+}
+
+.goal-detail-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.goal-edit-button {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 6px 12px;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.goal-edit-button:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+/* ── Phase Rail ───────────────────────────────────────────────── */
+
+.phase-rail {
+  border-bottom: none;
+  margin-bottom: 20px;
+  gap: 6px;
+}
+
+.phase-rail button {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  min-height: 28px;
+}
+
+.phase-rail .phase-active {
+  background: var(--note-clay);
+  color: #4A1B0C;
+  font-weight: 500;
+  border-color: transparent;
+}
+
+.phase-rail button:not(.phase-active) {
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.phase-rail button:not(.phase-active):hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.phase-rail .phase-active:hover {
+  background: var(--note-clay);
+  opacity: 0.92;
+}
+
+/* ── Kanban Board ─────────────────────────────────────────────── */
+
+.board-section {
+  padding-top: 0;
+  border-top: none;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(240px, 1fr));
+  gap: 16px;
+  padding-bottom: 4px;
+}
+
+.kanban-column {
+  flex: 1;
+  min-width: 240px;
+  min-height: 200px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  padding: 0;
+}
+
+.kanban-column > header {
+  background: transparent;
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 10px;
+}
+
+.kanban-column h3 {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+
+/* ── Task Cards ───────────────────────────────────────────────── */
+
+.task-card {
+  padding: 12px;
+  margin-bottom: 0;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.task-card-header h4 {
+  font-size: 13px;
+  font-weight: 400;
+  margin: 0;
+}
+
+/* In-progress task: accent border */
+.task-card-active {
+  border: 2px solid var(--focus);
+}
+
+/* Done task: reduced opacity + strikethrough */
+.task-card-done {
+  opacity: 0.7;
+}
+
+.task-card-done .task-title-button {
+  text-decoration: line-through;
+  color: var(--text-secondary);
+}
+
+.task-title-done {
+  text-decoration: line-through;
+  color: var(--text-secondary);
+}
+
+/* Overdue task label */
+.task-overdue-label {
+  margin: 6px 0 0;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--note-clay);
+}
+
+/* Checklist progress on task card */
+.task-checklist-progress {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin: 6px 0 0;
+}
+
+.task-card:focus-within {
+  border-color: var(--focus);
+}
+
+/* ── Long Title / Overflow Fixes ──────────────────────────────── */
+
+.dialog-header p,
+.task-detail-header h2,
+.dialog-form p,
+.delete-confirmation p {
   overflow-wrap: anywhere;
 }
 
-.backup-settings-content, .import-plan-content {
+.goal-title-container {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
 }
-.backup-settings-content h3, .import-plan-content h3 {
-  margin: 0;
+
+.goal-title-container .goal-title {
+  flex: 1;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
-.backup-settings-content p, .import-plan-content p {
-  margin: 0;
-  color: var(--text-secondary);
-}
-.backup-settings-content hr {
-  margin: 8px 0;
-  border: none;
-  border-top: 1px solid var(--border);
-}
+
+/* ── Inline Edit Button ───────────────────────────────────────── */
 
 .inline-edit-button {
   background: transparent;
@@ -1771,68 +1977,93 @@ select[aria-invalid="true"] {
   justify-content: center;
   cursor: pointer;
   border-radius: 4px;
+  min-height: auto;
 }
-.inline-edit-button:hover {
+
+.inline-edit-button:hover:not(:disabled) {
   background: var(--surface-3);
   color: var(--text);
 }
 
-.goal-title-container {
+/* ── Backup / Import Dialogs ──────────────────────────────────── */
+
+.backup-settings-content,
+.import-plan-content {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-}
-.goal-title-container .goal-title {
-  flex: 1;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  overflow-wrap: anywhere;
+  flex-direction: column;
+  gap: 12px;
 }
 
-/* Drag and Drop Indicators */
+.backup-settings-content h3,
+.import-plan-content h3 {
+  margin: 0;
+}
+
+.backup-settings-content p,
+.import-plan-content p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.backup-settings-content hr {
+  margin: 8px 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Drag and Drop Indicators ─────────────────────────────────── */
+
 .drag-over-before {
   border-top: 2px solid var(--focus) !important;
 }
+
 .drag-over-after {
   border-bottom: 2px solid var(--focus) !important;
 }
+
 .drag-over-column {
   background: var(--surface-2) !important;
   border-radius: 8px;
 }
+
 .drag-over-phase {
   background: var(--surface-2) !important;
   color: var(--text) !important;
 }
-.note-card[draggable="true"], .task-card[draggable="true"] {
+
+.note-card[draggable="true"],
+.task-card[draggable="true"] {
   cursor: grab;
 }
-.note-card[draggable="true"]:active, .task-card[draggable="true"]:active {
+
+.note-card[draggable="true"]:active,
+.task-card[draggable="true"]:active {
   cursor: grabbing;
 }
 
+/* ── Kanban Column Actions ────────────────────────────────────── */
+
 .kanban-column-actions {
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity var(--motion-fast) var(--motion-ease);
 }
+
 .kanban-column:hover .kanban-column-actions {
   opacity: 1;
 }
+
 .column-add-btn {
   padding: 4px;
   min-height: auto;
   border-radius: 4px;
 }
-.column-add-btn:hover {
+
+.column-add-btn:hover:not(:disabled) {
   background: var(--surface-2);
 }
 
+/* ── Dropdown Menu ────────────────────────────────────────────── */
 
-/* Dropdown Menu */
 .dropdown {
   position: relative;
   display: inline-block;
@@ -1846,11 +2077,13 @@ select[aria-invalid="true"] {
   border-radius: 4px;
   padding: 4px;
   color: var(--text-muted);
-  transition: background-color 0.15s, color 0.15s;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
 }
 
 .dropdown-trigger:hover {
-  background-color: var(--surface-hover);
+  background-color: var(--surface-3);
   color: var(--text);
 }
 
@@ -1858,9 +2091,9 @@ select[aria-invalid="true"] {
   position: absolute;
   right: 0;
   top: calc(100% + 4px);
-  background-color: var(--surface);
+  background-color: var(--surface-1);
   min-width: 160px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   border: 1px solid var(--border);
   border-radius: 6px;
   z-index: 100;
@@ -1871,8 +2104,14 @@ select[aria-invalid="true"] {
 }
 
 @keyframes dropdownFadeIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .dropdown-item {
@@ -1888,21 +2127,23 @@ select[aria-invalid="true"] {
   gap: 8px;
   font-size: 13px;
   width: 100%;
+  min-height: 36px;
 }
 
 .dropdown-item:hover {
-  background-color: var(--surface-hover);
+  background-color: var(--surface-2);
 }
 
 .dropdown-item.danger:hover {
   background-color: #3b1818;
-  color: #ff6b6b;
+  color: var(--danger-soft);
 }
 
-/* Hover revealed meatballs */
+/* ── Hover Reveal (Meatball Menus) ────────────────────────────── */
+
 .hover-reveal-container .hover-reveal-target {
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity var(--motion-fast) var(--motion-ease);
 }
 
 .hover-reveal-container:hover .hover-reveal-target,
@@ -1910,27 +2151,29 @@ select[aria-invalid="true"] {
   opacity: 1;
 }
 
-/* Hide checklist status text on hover so meatball menu takes its place smoothly */
 .checklist-row .checklist-state {
-  transition: opacity 0.15s;
+  transition: opacity var(--motion-fast) var(--motion-ease);
 }
+
 .checklist-row:hover .checklist-state {
   display: none;
 }
 
+/* ── Dialog Body & Actions ────────────────────────────────────── */
+
 .dialog-body {
-  padding: 24px;
+  padding: 18px 24px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
 .dialog-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  margin-top: 24px;
-  padding: 0 24px 24px;
+  gap: 8px;
+  margin-top: 20px;
+  padding: 0 24px 20px;
 }
 
 .file-input {
@@ -1943,4 +2186,45 @@ select[aria-invalid="true"] {
   color: var(--text);
   margin-top: 4px;
   font-family: inherit;
+}
+
+/* ── Responsive: Mobile ───────────────────────────────────────── */
+
+@media (max-width: 719px) {
+  .home-columns {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .goal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .board {
+    grid-template-columns: 1fr;
+  }
+
+  .goal-detail-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .goal-edit-button {
+    align-self: flex-start;
+  }
+
+  .goal-pin.tilt-left,
+  .goal-pin.tilt-right {
+    transform: none;
+  }
+}
+
+/* ── Reduced Motion ───────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .goal-pin.tilt-left,
+  .goal-pin.tilt-right {
+    transform: none;
+  }
 }
