@@ -32,6 +32,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import type { ReorderPlacement, TrackerService } from "../../application/tracker-service";
 import { DomainError } from "../../domain/errors";
 import {
@@ -98,11 +99,9 @@ function DropdownMenu({ trigger, children }: { trigger: ReactNode, children: Rea
       <div className="dropdown-trigger" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsOpen(!isOpen); }}>
         {trigger}
       </div>
-      {isOpen && (
-        <div className="dropdown-content" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}>
+      <div className="dropdown-content" style={{ display: isOpen ? "flex" : "none" }} onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}>
           {children}
         </div>
-      )}
     </div>
   );
 }
@@ -517,7 +516,7 @@ function BackupSettingsDialog({ onExport, onRestore }: BackupSettingsDialogProps
               </div>
             </div>
           ) : (
-            <div className="dialog-body backup-settings-content">
+            <div className="dialog-body">
               <h3>Export Backup</h3>
               <p>Export your complete local state to a JSON file.</p>
               <button
@@ -525,12 +524,12 @@ function BackupSettingsDialog({ onExport, onRestore }: BackupSettingsDialogProps
                 disabled={isExporting || isRestoring}
                 onClick={() => void handleExport()}
                 type="button"
-                style={{ margin: "8px 0 24px" }}
+
               >
                 {isExporting ? "Exporting..." : "Export Backup"}
               </button>
 
-              <hr style={{ margin: "16px 0", borderTop: "1px solid var(--border-color)" }} />
+              <hr style={{ margin: "8px 0", borderTop: "1px solid var(--border)" }} />
 
               <h3>Restore Backup</h3>
               <p>Select a JSON backup file to restore.</p>
@@ -541,14 +540,14 @@ function BackupSettingsDialog({ onExport, onRestore }: BackupSettingsDialogProps
                 onChange={handleFileChange}
                 ref={fileInputRef}
                 type="file"
-                style={{ margin: "16px 0" }}
+
               />
 
               {previewSummary && !error && (
-                <div className="import-preview" style={{ background: "var(--background-raised)", padding: "12px", borderRadius: "8px", margin: "16px 0" }}>
+                <div className="import-preview" style={{ background: "var(--surface-2)", padding: "12px", borderRadius: "8px" }}>
                   <p><strong>File:</strong> {fileName}</p>
                   <p>{previewSummary}</p>
-                  <p style={{ color: "var(--error-color)", marginTop: "8px", fontWeight: "bold" }}>
+                  <p style={{ color: "var(--text-danger)", marginTop: "8px", fontWeight: "bold" }}>
                     Warning: Restoring will completely replace all existing local data. This action cannot be undone.
                   </p>
                 </div>
@@ -715,7 +714,7 @@ function ImportPlanDialog({ onImport }: ImportPlanDialogProps) {
                 </div>
               </div>
             ) : (
-              <div className="dialog-body import-plan-content">
+              <div className="dialog-body">
                 <p>Select a JSON AI Plan file to import.</p>
                 <input
                   accept="application/json,.json"
@@ -724,11 +723,11 @@ function ImportPlanDialog({ onImport }: ImportPlanDialogProps) {
                   onChange={handleFileChange}
                   ref={fileInputRef}
                   type="file"
-                  style={{ margin: "16px 0" }}
+  
                 />
 
                 {fileContent && !error && (
-                  <div className="import-preview" style={{ background: "var(--background-raised)", padding: "12px", borderRadius: "8px", margin: "16px 0" }}>
+                  <div className="import-preview" style={{ background: "var(--surface-2)", padding: "12px", borderRadius: "8px" }}>
                     <p><strong>File:</strong> {fileName}</p>
                     <p>Preview ready. The plan will be added to your current goals.</p>
                   </div>
@@ -840,14 +839,14 @@ function EntityDialog({
         aria-label={triggerLabel}
         className={`icon-button${triggerClassName === undefined ? "" : ` ${triggerClassName}`}`}
         data-tooltip={triggerLabel}
-        onClick={open}
+        onClick={(e) => { e.stopPropagation(); open(); }}
         ref={triggerRef}
         title={triggerLabel}
         type="button"
       >
         {triggerIcon}
       </button>
-      {isOpen ? (
+      {isOpen ? createPortal(
         <dialog
           aria-labelledby={`${inputId}-dialog-title`}
           className="entity-dialog"
@@ -878,7 +877,8 @@ function EntityDialog({
                 <XIcon aria-hidden="true" size={18} weight="bold" />
               </button>
             </div>
-            <label htmlFor={inputId}>{label}</label>
+            <div className="dialog-body">
+              <label htmlFor={inputId}>{label}</label>
             <input
               aria-describedby={error === undefined ? undefined : errorId}
               aria-invalid={error === undefined ? undefined : true}
@@ -901,6 +901,7 @@ function EntityDialog({
                 {error}
               </p>
             )}
+            </div>
             <div className="dialog-actions">
               <button disabled={isSaving} onClick={close} type="button">
                 Cancel
@@ -910,7 +911,8 @@ function EntityDialog({
               </button>
             </div>
           </form>
-        </dialog>
+        </dialog>,
+        document.body
       ) : null}
     </>
   );
@@ -2019,6 +2021,7 @@ function NoteEditorDialog({
                 {error}
               </p>
             )}
+            </div>
             <div className="dialog-actions">
               <button disabled={isSaving} onClick={requestClose} type="button">
                 Cancel
@@ -2760,6 +2763,7 @@ function TaskCard({
                 <XIcon aria-hidden="true" size={18} weight="bold" />
               </button>
             </div>
+            <div className="dialog-body">
             {isMutating ? (
               <p className="task-action-state" id={mutationReasonId}>
                 Updating task…

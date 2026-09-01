@@ -1353,9 +1353,8 @@ select[aria-invalid="true"] {
 }
 
 .dialog-form {
-  display: grid;
-  gap: 12px;
-  padding: 24px;
+  display: flex;
+  flex-direction: column;
 }
 
 .dialog-form > label,
@@ -1371,6 +1370,10 @@ select[aria-invalid="true"] {
 .dialog-header {
   justify-content: space-between;
   gap: 12px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
 }
 
 .dialog-header h2,
@@ -1744,7 +1747,6 @@ select[aria-invalid="true"] {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 8px 0;
 }
 .backup-settings-content h3, .import-plan-content h3 {
   margin: 0;
@@ -1915,3 +1917,31 @@ select[aria-invalid="true"] {
 .checklist-row:hover .checklist-state {
   display: none;
 }
+
+.dialog-body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 0 24px 24px;
+}
+
+.file-input {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  margin-top: 4px;
+  font-family: inherit;
+}
+\n\n\n
