@@ -2,15 +2,44 @@
 
 ## Status
 
-`Automation passed — real Chrome execution pending.` Design and Dev have
+`Q01–Q06 passed — Q07–Q22 pending real Chrome execution.` Design and Dev have
 completed the implementation handoff in
 [`docs/work-items/M2_CHECKLIST_PERSONAL_INBOX.md`](../work-items/M2_CHECKLIST_PERSONAL_INBOX.md).
-On 2026-08-31, `pnpm typecheck`, 18 unit tests, 10 integration tests, the full
-28-test suite, `pnpm build`, and `git diff --check` passed. M2 remains blocked
-from a QA Pass recommendation until every applicable scenario below has
-independent evidence from the exact production build in `.output/chrome-mv3`.
-The executing QA owner must record the reviewed commit and artifact hashes;
-the current working-tree handoff is deliberately not assigned release hashes.
+On 2026-09-01, independent QA reran and strengthened the automated evidence:
+`pnpm typecheck`, 18 unit tests, 11 integration tests, the full 29-test suite,
+`pnpm build`, and `git diff --check` passed. M2 remains blocked from a QA Pass
+recommendation until the real unpacked-Chrome scenarios below have independent
+evidence from the exact production build in `.output/chrome-mv3`.
+
+## Execution snapshot — 2026-09-01
+
+- Runtime source revision: `eca7a41` (`feat: m2.5 update`). The current
+  uncommitted changes are test and QA-documentation evidence only; production
+  source and output remain those of this revision.
+- Package/build: `my-tracker` `0.1.0`, Chrome MV3 production output at
+  `.output/chrome-mv3`.
+- Manifest SHA-256:
+  `7cc10705cdbc6f95aa3151b6345cdbb0486df94bbb1284815cb383da66f8cb15`.
+- New Tab HTML SHA-256:
+  `5f6f0ea447db665533c0cc7cc40e5749eb25529728a4082797c5b5f4d1cc1415`.
+- New Tab JavaScript SHA-256:
+  `a83bc84420a2dbf3f72bfb4b909ec8283fe82bdb91a91cb366a4c82470ae59ff`.
+- New Tab CSS SHA-256:
+  `7730a58012e2c3d344c60990864b27e039e261befd31ac60f831f17a67cd881e`.
+- Q01–Q05: Pass. QA independently verified the configured gates, generated
+  manifest and bundled files, domain/application invariants, v2 stores and
+  indexes, reconnect persistence, a multi-record authentic v1 fixture,
+  blocked-upgrade retry, pre-write exactly-once retries for every M2 mutation
+  family, and post-write reorder/delete rollback.
+- Q06: Pass on 2026-09-01. The owner executed the delayed-load and one-shot
+  load-failure URLs in the scoped My Tracker Chrome group because browser
+  control policy blocks `chrome-extension://` pages. The owner confirmed honest
+  loading, disabled early capture, visible recoverable shell, successful Retry,
+  correct Quick note → Inbox → Goals order, and no M3 affordance.
+- Q07–Q22: Pending user-executed Chrome evidence. Browser control is connected
+  but its security policy blocks interacting with `chrome-extension://` pages;
+  do not convert remaining scenarios to Pass from static or `fake-indexeddb`
+  evidence.
 
 ## Objective
 
@@ -687,30 +716,30 @@ alone.
 
 | AC | Result | Scenario evidence | Defect/risk |
 | --- | --- | --- | --- |
-| 1 | Not run | Q06 | |
-| 2 | Not run | Q02, Q07 | |
-| 3 | Not run | Q02, Q08 | |
-| 4 | Not run | Q02, Q07 | |
-| 5 | Not run | Q02, Q05, Q09 | |
-| 6 | Not run | Q02, Q06, Q10 | |
-| 7 | Not run | Q02, Q08, Q10 | |
-| 8 | Not run | Q02, Q05, Q11 | |
-| 9 | Not run | Q02, Q12 | |
-| 10 | Not run | Q13, Q20 | |
-| 11 | Not run | Q14 | |
-| 12 | Not run | Q02, Q03, Q13 | |
-| 13 | Not run | Q02, Q15 | |
-| 14 | Not run | Q02, Q03, Q16, Q17 | |
-| 15 | Not run | Q02, Q16 | |
-| 16 | Not run | Q03 | |
-| 17 | Not run | Q04, Q22 | |
-| 18 | Not run | Q03, Q17 | |
-| 19 | Not run | Q05, Q18, Q19 | |
-| 20 | Not run | Q05, Q19 | |
-| 21 | Not run | Q07, Q09, Q11, Q13, Q20 | |
-| 22 | Not run | Q16, Q18, Q20 | |
-| 23 | Not run | Q01, Q21 | |
-| 24 | Not run | Q01, Q06-Q21 | |
+| 1 | Pass | Q06 | Owner observed delayed loading and recoverable one-shot load failure |
+| 2 | Blocked | Q02, Q07 | Automated evidence passes; Q07 unavailable |
+| 3 | Blocked | Q02, Q08 | Automated evidence passes; Q08 unavailable |
+| 4 | Blocked | Q02, Q07 | Automated evidence passes; Q07 unavailable |
+| 5 | Blocked | Q02, Q05, Q09 | Automated evidence passes; Q09 unavailable |
+| 6 | Blocked | Q02, Q06, Q10 | Automated evidence passes; Chrome evidence unavailable |
+| 7 | Blocked | Q02, Q08, Q10 | Automated evidence passes; Chrome evidence unavailable |
+| 8 | Blocked | Q02, Q05, Q11 | Automated evidence passes; Q11 unavailable |
+| 9 | Blocked | Q02, Q12 | Automated evidence passes; Q12 unavailable |
+| 10 | Blocked | Q13, Q20 | Real Chrome connection unavailable |
+| 11 | Blocked | Q14 | Real Chrome connection unavailable |
+| 12 | Blocked | Q02, Q03, Q13 | Automated evidence passes; Q13 unavailable |
+| 13 | Blocked | Q02, Q15 | Automated evidence passes; Q15 unavailable |
+| 14 | Blocked | Q02, Q03, Q16, Q17 | Automated evidence passes; Chrome evidence unavailable |
+| 15 | Blocked | Q02, Q16 | Automated evidence passes; Q16 unavailable |
+| 16 | Pass | Q03 | IndexedDB v2 stores/indexes and reconnect snapshot verified |
+| 17 | Blocked | Q04, Q22 | Automated migration passes; real upgrade unavailable |
+| 18 | Blocked | Q03, Q17 | Automated reconnect passes; Chrome reopen unavailable |
+| 19 | Blocked | Q05, Q18, Q19 | Automated rollback passes; Chrome recovery unavailable |
+| 20 | Pass | Q05 | Post-write note reorder/delete rollback verified after reconnect |
+| 21 | Blocked | Q07, Q09, Q11, Q13, Q20 | Real Chrome connection unavailable |
+| 22 | Blocked | Q16, Q18, Q20 | Real Chrome connection unavailable |
+| 23 | Blocked | Q01, Q21 | Static boundary passes; Offline Chrome evidence unavailable |
+| 24 | Blocked | Q01, Q06-Q21 | Production artifact passes; unpacked journey unavailable |
 
 ## Release recommendation rule
 

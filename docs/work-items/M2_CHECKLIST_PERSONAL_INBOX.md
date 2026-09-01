@@ -13,9 +13,11 @@ Real unpacked-Chrome QA remains pending, so this work item is not yet accepted.
   a blocked v1-to-v2 upgrade through the same database adapter.
 - Preserved the public schemas, extension permissions, local-only boundary, and
   independent task/checklist status semantics.
-- Passed `pnpm typecheck`, `pnpm test:unit` (18 tests),
-  `pnpm test:integration` (10 tests), `pnpm test` (28 tests), `pnpm build`, and
-  `git diff --check`.
+- On 2026-09-01, independent QA passed `pnpm typecheck`, `pnpm test:unit`
+  (18 tests), `pnpm test:integration` (11 tests), `pnpm test` (29 tests),
+  `pnpm build`, and `git diff --check`. Q01–Q06 pass; Q07–Q22 await
+  user-executed Chrome evidence because browser control policy cannot interact
+  with `chrome-extension://` pages.
 - QA must execute the production build from `.output/chrome-mv3` against the
   scenarios in `docs/qa/M2_TEST_PLAN.md`, including close/reopen persistence,
   keyboard flows, IndexedDB upgrade, error recovery, and offline/network checks.

@@ -42,7 +42,11 @@ function transactionCompletion(transaction: IDBTransaction): Promise<void> {
 
 async function seedVersionOneDatabase(
   name: string,
-  records: { goal: Goal; phase: Phase; task: Task },
+  records: {
+    goals: readonly Goal[];
+    phases: readonly Phase[];
+    tasks: readonly Task[];
+  },
 ): Promise<void> {
   const openRequest = indexedDB.open(name, 1);
   openRequest.addEventListener("upgradeneeded", () => {
@@ -67,9 +71,15 @@ async function seedVersionOneDatabase(
 
   const database = openRequest.result;
   const transaction = database.transaction(["goals", "phases", "tasks"], "readwrite");
-  transaction.objectStore("goals").put(records.goal);
-  transaction.objectStore("phases").put(records.phase);
-  transaction.objectStore("tasks").put(records.task);
+  for (const goal of records.goals) {
+    transaction.objectStore("goals").put(goal);
+  }
+  for (const phase of records.phases) {
+    transaction.objectStore("phases").put(phase);
+  }
+  for (const task of records.tasks) {
+    transaction.objectStore("tasks").put(task);
+  }
   await transactionCompletion(transaction);
   database.close();
 }
@@ -137,6 +147,11 @@ describe("IndexedDbTrackerDatabase", () => {
     const goal = await first.service.createGoal("Durable goal");
     const phase = await first.service.createPhase(goal.id, "M2");
     const task = await first.service.createTask(goal.id, phase.id, "Persist M2 data");
+    const secondTask = await first.service.createTask(
+      goal.id,
+      phase.id,
+      "Persist another checklist",
+    );
     const firstNote = await first.service.createNote("First note", {
       kind: "goal",
       goalId: goal.id,
@@ -151,30 +166,46 @@ describe("IndexedDbTrackerDatabase", () => {
       "Persist checklist state",
     );
     await first.service.setChecklistItemCompleted(task.id, checklistItem.id, true);
+    await first.service.createChecklistItem(secondTask.id, "Second task item");
+    const inboxBeforeClose = await first.service.getInbox();
+    const firstChecklistBeforeClose = await first.service.getTaskChecklist(task.id);
+    const secondChecklistBeforeClose = await first.service.getTaskChecklist(secondTask.id);
     await first.database.close();
 
     const reopened = createFixture(name);
-    expect((await reopened.service.getInbox()).items.map(({ note }) => note)).toEqual([
-      expect.objectContaining({
-        id: secondNote.id,
-        linkedTaskId: task.id,
-        position: 0,
-      }),
-      expect.objectContaining({
-        id: firstNote.id,
-        linkedGoalId: goal.id,
-        position: 1,
-      }),
-    ]);
-    expect((await reopened.service.getTaskChecklist(task.id)).checklistItems).toEqual([
-      expect.objectContaining({
-        id: checklistItem.id,
-        taskId: task.id,
-        isCompleted: true,
-        position: 0,
-      }),
-    ]);
+    expect(await reopened.service.getInbox()).toEqual(inboxBeforeClose);
+    expect(await reopened.service.getTaskChecklist(task.id)).toEqual(
+      firstChecklistBeforeClose,
+    );
+    expect(await reopened.service.getTaskChecklist(secondTask.id)).toEqual(
+      secondChecklistBeforeClose,
+    );
     await reopened.database.close();
+
+    const inspectionRequest = indexedDB.open(name, 2);
+    await requestCompletion(inspectionRequest);
+    const inspectionDatabase = inspectionRequest.result;
+    expect(Array.from(inspectionDatabase.objectStoreNames)).toEqual([
+      "checklistItems",
+      "goals",
+      "notes",
+      "phases",
+      "tasks",
+    ]);
+    const inspectionTransaction = inspectionDatabase.transaction(
+      ["checklistItems", "notes"],
+      "readonly",
+    );
+    expect(Array.from(inspectionTransaction.objectStore("checklistItems").indexNames)).toEqual([
+      "by-task-position",
+    ]);
+    expect(Array.from(inspectionTransaction.objectStore("notes").indexNames)).toEqual([
+      "by-linked-goal-position",
+      "by-linked-task-position",
+      "by-position",
+    ]);
+    await transactionCompletion(inspectionTransaction);
+    inspectionDatabase.close();
   });
 
   it("upgrades a populated v1 database to v2 without changing M1 records", async () => {
@@ -208,7 +239,48 @@ describe("IndexedDbTrackerDatabase", () => {
       createdAt: "2026-08-28T07:02:00.000Z",
       updatedAt: "2026-08-28T07:03:00.000Z",
     };
-    await seedVersionOneDatabase(name, { goal, phase, task });
+    const secondGoal: Goal = {
+      ...goal,
+      id: "v1-goal-2",
+      title: "Second existing goal",
+      position: 1,
+    };
+    const secondPhase: Phase = {
+      ...phase,
+      id: "v1-phase-2",
+      goalId: secondGoal.id,
+      title: "Second existing phase",
+    };
+    const todoTask: Task = {
+      id: "v1-task-todo",
+      goalId: secondGoal.id,
+      phaseId: secondPhase.id,
+      title: "Existing todo task",
+      status: "todo",
+      priority: "medium",
+      position: 0,
+      notifyAtDue: false,
+      createdAt: "2026-08-28T07:04:00.000Z",
+      updatedAt: "2026-08-28T07:04:00.000Z",
+    };
+    const inProgressTask: Task = {
+      id: "v1-task-progress",
+      goalId: secondGoal.id,
+      phaseId: secondPhase.id,
+      title: "Existing in-progress task",
+      status: "in_progress",
+      priority: "medium",
+      position: 1,
+      notifyAtDue: false,
+      createdAt: "2026-08-28T07:05:00.000Z",
+      updatedAt: "2026-08-28T07:05:00.000Z",
+    };
+    const v1Records = {
+      goals: [goal, secondGoal],
+      phases: [phase, secondPhase],
+      tasks: [task, todoTask, inProgressTask],
+    };
+    await seedVersionOneDatabase(name, v1Records);
 
     const upgraded = createFixture(name);
     expect(await upgraded.service.getWorkspace()).toEqual({
@@ -216,6 +288,10 @@ describe("IndexedDbTrackerDatabase", () => {
         {
           goal,
           phases: [{ phase, tasks: [task] }],
+        },
+        {
+          goal: secondGoal,
+          phases: [{ phase: secondPhase, tasks: [todoTask, inProgressTask] }],
         },
       ],
     });
@@ -273,7 +349,11 @@ describe("IndexedDbTrackerDatabase", () => {
       createdAt: "2026-08-28T07:02:00.000Z",
       updatedAt: "2026-08-28T07:02:00.000Z",
     };
-    await seedVersionOneDatabase(name, { goal, phase, task });
+    await seedVersionOneDatabase(name, {
+      goals: [goal],
+      phases: [phase],
+      tasks: [task],
+    });
 
     const blockerRequest = indexedDB.open(name, 1);
     await requestCompletion(blockerRequest);
@@ -351,6 +431,89 @@ describe("IndexedDbTrackerDatabase", () => {
       title: "Retry me",
     });
     expect((await service.getWorkspace()).goals).toHaveLength(1);
+    await fixture.database.close();
+  });
+
+  it("fails each M2 mutation once and retries it exactly once", async () => {
+    const fixture = createFixture();
+    const goal = await fixture.service.createGoal("Goal");
+    const phase = await fixture.service.createPhase(goal.id, "Phase");
+    const task = await fixture.service.createTask(goal.id, phase.id, "Task");
+    const existingNote = await fixture.service.createNote("Original note");
+
+    let serviceSequence = 0;
+    const createFailingService = () =>
+      new TrackerService(new FailNextWriteDatabase(fixture.database), {
+        createId: () => `retry-id-${++serviceSequence}`,
+        clock: () => `2026-08-28T16:00:0${serviceSequence}.000Z`,
+      });
+
+    const createService = createFailingService();
+    const beforeCreate = await fixture.service.getInbox();
+    await expect(createService.createNote("Created after retry")).rejects.toThrow(
+      "Simulated save failure",
+    );
+    expect(await fixture.service.getInbox()).toEqual(beforeCreate);
+    const createdNote = await createService.createNote("Created after retry");
+    expect(
+      (await fixture.service.getInbox()).items.filter(
+        ({ note }) => note.id === createdNote.id,
+      ),
+    ).toHaveLength(1);
+
+    const editService = createFailingService();
+    const beforeEdit = await fixture.service.getInbox();
+    await expect(
+      editService.editNote(existingNote.id, "Edited after retry", {
+        kind: "goal",
+        goalId: goal.id,
+      }),
+    ).rejects.toThrow("Simulated save failure");
+    expect(await fixture.service.getInbox()).toEqual(beforeEdit);
+    await editService.editNote(existingNote.id, "Edited after retry", {
+      kind: "goal",
+      goalId: goal.id,
+    });
+    expect(
+      (await fixture.service.getInbox()).items.find(
+        ({ note }) => note.id === existingNote.id,
+      )?.note,
+    ).toMatchObject({ body: "Edited after retry", linkedGoalId: goal.id });
+
+    const checklistCreateService = createFailingService();
+    const beforeChecklistCreate = await fixture.service.getTaskChecklist(task.id);
+    await expect(
+      checklistCreateService.createChecklistItem(task.id, "Created after retry"),
+    ).rejects.toThrow("Simulated save failure");
+    expect(await fixture.service.getTaskChecklist(task.id)).toEqual(
+      beforeChecklistCreate,
+    );
+    const checklistItem = await checklistCreateService.createChecklistItem(
+      task.id,
+      "Created after retry",
+    );
+    expect((await fixture.service.getTaskChecklist(task.id)).checklistItems).toEqual([
+      checklistItem,
+    ]);
+
+    const toggleService = createFailingService();
+    const beforeToggle = await fixture.service.getTaskChecklist(task.id);
+    await expect(
+      toggleService.setChecklistItemCompleted(task.id, checklistItem.id, true),
+    ).rejects.toThrow("Simulated save failure");
+    expect(await fixture.service.getTaskChecklist(task.id)).toEqual(beforeToggle);
+    const toggled = await toggleService.setChecklistItemCompleted(
+      task.id,
+      checklistItem.id,
+      true,
+    );
+    expect(toggled).toMatchObject({
+      id: checklistItem.id,
+      isCompleted: true,
+    });
+    expect((await fixture.service.getTaskChecklist(task.id)).checklistItems[0]).toEqual(
+      toggled,
+    );
     await fixture.database.close();
   });
 
