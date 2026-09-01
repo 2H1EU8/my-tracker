@@ -501,6 +501,46 @@ export class TrackerService {
     );
   }
 
+
+  async renameChecklistItem(taskId: string, checklistItemId: string, rawTitle: string): Promise<ChecklistItem> {
+    const title = normalizeTitle(rawTitle);
+    return this.database.transaction(
+      ["tasks", "checklistItems"],
+      "readwrite",
+      async (repositories) => {
+        const checklistItem = await repositories.checklistItems.get(checklistItemId);
+        if (checklistItem === undefined || checklistItem.taskId !== taskId) {
+          throw new DomainError("not_found", "Checklist item not found.");
+        }
+        if (checklistItem.title === title) {
+          return checklistItem;
+        }
+
+        const updated: ChecklistItem = {
+          ...checklistItem,
+          title,
+          updatedAt: this.dependencies.clock(),
+        };
+        await repositories.checklistItems.put(updated);
+        return updated;
+      },
+    );
+  }
+
+  async deleteChecklistItem(taskId: string, checklistItemId: string): Promise<void> {
+    return this.database.transaction(
+      ["tasks", "checklistItems"],
+      "readwrite",
+      async (repositories) => {
+        const checklistItem = await repositories.checklistItems.get(checklistItemId);
+        if (checklistItem === undefined || checklistItem.taskId !== taskId) {
+          throw new DomainError("not_found", "Checklist item not found.");
+        }
+        await repositories.checklistItems.delete(checklistItemId);
+      },
+    );
+  }
+
   async setChecklistItemCompleted(
     taskId: string,
     checklistItemId: string,
