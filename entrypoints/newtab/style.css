@@ -1,23 +1,29 @@
 :root {
-  color: #f2f1e9;
-  background: #10120f;
+  color: #EDE6DA;
+  background: #171513;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
-  --canvas: #10120f;
-  --surface-1: #171a16;
-  --surface-2: #1d211c;
-  --surface-3: #252a23;
-  --border: #353b32;
-  --border-strong: #5b6456;
-  --border-interactive: #66705f;
-  --text: #f2f1e9;
-  --text-secondary: #b9bdb2;
-  --text-muted: #92988d;
-  --focus: #d7e58a;
-  --success: #a7d0a4;
-  --warning: #e1c77a;
-  --danger: #ff9b90;
-  --info: #a8c9df;
+  --canvas: #171513;
+  --surface-1: #211E1B;
+  --surface-2: #2A2622;
+  --surface-3: #332F2A;
+  --border: #3A352F;
+  --border-strong: #5F5A52;
+  --border-interactive: #6A635A;
+  --text: #EDE6DA;
+  --text-secondary: #9C948A;
+  --text-muted: #7A746C;
+  --focus: #E8A33D;
+  --success: #8FA883;
+  --warning: #E1C77A;
+  --danger: #E24B4A;
+  --danger-soft: #F09595;
+  --info: #7B93AA;
+  --note-amber: #C97B5E;
+  --note-sage: #8FA883;
+  --note-blue: #7B93AA;
+  --note-mauve: #A88AA0;
+  --note-clay: #BF917B;
   --motion-fast: 120ms;
   --motion-standard: 180ms;
   --motion-ease: cubic-bezier(0.2, 0, 0, 1);
@@ -251,14 +257,15 @@ h2 {
 .goal-pin,
 .skeleton-card {
   min-height: 220px;
-  border: 1px solid #292d26;
+  border: 1px solid var(--border);
   border-radius: 8px;
 }
 
 .goal-pin {
   position: relative;
   isolation: isolate;
-  color: #151812;
+  color: var(--text);
+  background: var(--surface-2);
   padding: 32px 24px 24px;
   transition:
     background-color var(--motion-fast) var(--motion-ease),
@@ -272,7 +279,7 @@ h2 {
   left: calc(50% - 4px);
   width: 8px;
   height: 8px;
-  background: currentColor;
+  background: var(--text-muted);
   opacity: 0.72;
 }
 
@@ -283,7 +290,7 @@ h2 {
   left: calc(50% - 1px);
   width: 2px;
   height: 6px;
-  background: currentColor;
+  background: var(--text-muted);
   opacity: 0.55;
 }
 
@@ -300,27 +307,59 @@ h2 {
 }
 
 .goal-pin:hover {
-  border-color: rgb(0 0 0 / 70%);
+  border-color: var(--border-strong);
+  background: var(--surface-3);
 }
 
 .note-amber {
-  background: #ceb66f;
+  border-color: var(--note-amber);
+  border-left: 3px solid var(--note-amber);
 }
 
 .note-sage {
-  background: #9db69d;
+  border-color: var(--note-sage);
+  border-left: 3px solid var(--note-sage);
 }
 
 .note-blue {
-  background: #91aebe;
+  border-color: var(--note-blue);
+  border-left: 3px solid var(--note-blue);
 }
 
 .note-mauve {
-  background: #b49eb0;
+  border-color: var(--note-mauve);
+  border-left: 3px solid var(--note-mauve);
 }
 
 .note-clay {
-  background: #bf917b;
+  border-color: var(--note-clay);
+  border-left: 3px solid var(--note-clay);
+}
+
+.goal-progress-track {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-bottom: 6px;
+}
+
+.goal-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width var(--motion-standard) var(--motion-ease);
+}
+
+.note-amber .goal-progress-fill { background: var(--note-amber); }
+.note-sage .goal-progress-fill { background: var(--note-sage); }
+.note-blue .goal-progress-fill { background: var(--note-blue); }
+.note-mauve .goal-progress-fill { background: var(--note-mauve); }
+.note-clay .goal-progress-fill { background: var(--note-clay); }
+
+.goal-summary {
+  margin: 0;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
 }
 
 .skeleton-card {

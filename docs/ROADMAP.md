@@ -116,6 +116,10 @@ Exit gate:
 
 ## M4 — AI plan import
 
+Status: implementation complete and automated gates passing; QA validation remains pending.
+
+Ready work item: [`docs/work-items/M4_AI_PLAN_IMPORT.md`](work-items/M4_AI_PLAN_IMPORT.md)
+
 Outcome:
 
 Generate a large plan externally, preview it, and create goals without retyping.
