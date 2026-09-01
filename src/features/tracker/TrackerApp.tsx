@@ -61,7 +61,7 @@ interface RetryOperation {
   action: () => Promise<unknown>;
   successMessage: string | ((result: unknown) => string);
   getFocusSelector: (() => string | undefined) | undefined;
-  refresh: () => Promise<void>;
+  refresh: () => Promise<unknown>;
 }
 
 type LinkDraft =
@@ -347,8 +347,8 @@ interface ImportPlanDialogProps {
 
 
 interface BackupSettingsDialogProps {
-  onExport: () => Promise<void>;
-  onRestore: (backupData: unknown) => Promise<void>;
+  onExport: () => Promise<unknown>;
+  onRestore: (backupData: unknown) => Promise<unknown>;
 }
 
 function BackupSettingsDialog({ onExport, onRestore }: BackupSettingsDialogProps) {
@@ -1451,11 +1451,11 @@ interface HomeViewProps {
     target: Note,
     placement: ReorderPlacement,
   ) => Promise<Note>;
-  onRetryGoals: () => Promise<void>;
-  onRetryInbox: () => Promise<void>;
+  onRetryGoals: () => Promise<unknown>;
+  onRetryInbox: () => Promise<unknown>;
   onImportPlan: (plan: unknown) => Promise<any>;
-  onExportBackup: () => Promise<void>;
-  onRestoreBackup: (backupData: unknown) => Promise<void>;
+  onExportBackup: () => Promise<unknown>;
+  onRestoreBackup: (backupData: unknown) => Promise<unknown>;
 }
 
 function HomeView({
@@ -1657,7 +1657,7 @@ interface InboxViewProps {
     target: Note,
     placement: ReorderPlacement,
   ) => Promise<Note>;
-  onRetry: () => Promise<void>;
+  onRetry: () => Promise<unknown>;
   workspaceFailed: boolean;
 }
 
@@ -2084,46 +2084,6 @@ function NoteActionsDialog({
             </div>
             {view === "actions" ? (
               <>
-                <div className="task-option-grid note-order-actions">
-                  <button
-                    aria-label={
-                      previousNote === undefined
-                        ? "Note is already first"
-                        : `Move note before ${noteExcerpt(previousNote.body)}`
-                    }
-                    className="task-option"
-                    disabled={isMutating || previousNote === undefined}
-                    onClick={() => {
-                      if (previousNote !== undefined) {
-                        void run(() => onReorder(note, previousNote, "before"));
-                      }
-                    }}
-                    type="button"
-                  >
-                    <CaretUpIcon aria-hidden="true" size={20} />
-                    <span>Move before</span>
-                    {previousNote === undefined ? <small>Already first</small> : null}
-                  </button>
-                  <button
-                    aria-label={
-                      nextNote === undefined
-                        ? "Note is already last"
-                        : `Move note after ${noteExcerpt(nextNote.body)}`
-                    }
-                    className="task-option"
-                    disabled={isMutating || nextNote === undefined}
-                    onClick={() => {
-                      if (nextNote !== undefined) {
-                        void run(() => onReorder(note, nextNote, "after"));
-                      }
-                    }}
-                    type="button"
-                  >
-                    <CaretDownIcon aria-hidden="true" size={20} />
-                    <span>Move after</span>
-                    {nextNote === undefined ? <small>Already last</small> : null}
-                  </button>
-                </div>
                 <button
                   className="danger-action"
                   disabled={isMutating}
@@ -2197,7 +2157,7 @@ interface GoalViewProps {
     checklistItemId: string,
     isCompleted: boolean,
   ) => Promise<ChecklistItem>;
-  onRetryChecklistProgress: () => Promise<void>;
+  onRetryChecklistProgress: () => Promise<unknown>;
   selectedPhase: PhaseTree | undefined;
 }
 
@@ -2234,9 +2194,9 @@ function GoalView({
           >
             <ArrowLeftIcon aria-hidden="true" size={20} />
           </button>
-          <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 500 }}>{goalTree.goal.title}</h3>
-        </div>
-        <EntityDialog
+          <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {goalTree.goal.title}
+            <EntityDialog
           dialogTitle="Rename goal"
           initialValue={goalTree.goal.title}
           inputId={`rename-goal-${goalTree.goal.id}`}
@@ -2244,10 +2204,12 @@ function GoalView({
           onSubmit={onRenameGoal}
           placeholder="Goal title"
           submitLabel="Save changes"
-          triggerClassName="button-secondary"
+          triggerClassName="inline-edit-button"
           triggerIcon={<PencilSimpleIcon aria-hidden="true" size={12} style={{marginRight: '6px'}}/>}
           triggerLabel={`Edit goal`}
         />
+          </h3>
+        </div>
       </div>
 
       {checklistProgressError !== undefined ? (
@@ -2354,8 +2316,20 @@ function Board({
 }: BoardProps) {
   return (
     <section className="board-section" aria-labelledby="phase-title">
-      <div className="section-heading board-heading" style={{ display: 'none' }}>
-        <h2 id="phase-title">{phaseTree.phase.title}</h2>
+      <div className="section-heading board-heading" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+        <h2 id="phase-title" style={{ margin: 0, fontSize: '15px' }}>{phaseTree.phase.title}</h2>
+        <EntityDialog
+          dialogTitle="Rename phase"
+          initialValue={phaseTree.phase.title}
+          inputId={`rename-phase-${phaseTree.phase.id}`}
+          label="Phase title"
+          onSubmit={onRenamePhase}
+          placeholder="Phase title"
+          submitLabel="Save changes"
+          triggerClassName="inline-edit-button"
+          triggerIcon={<PencilSimpleIcon aria-hidden="true" size={14} />}
+          triggerLabel={`Rename phase ${phaseTree.phase.title}`}
+        />
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
@@ -2534,6 +2508,7 @@ function TaskCard({
           onSetChecklistItemCompleted={onSetChecklistItemCompleted}
           setChecklistState={setChecklistState}
           task={task}
+          onRenameTask={onRenameTask}
         />
         <div className="card-actions">
           <button
@@ -2637,55 +2612,7 @@ function TaskCard({
                 })}
               </div>
             </fieldset>
-            <fieldset className="task-option-group">
-              <legend>Order in column</legend>
-              <div className="task-option-grid">
-                <button
-                  aria-label={
-                    previousTask === undefined
-                      ? `${task.title} is already first`
-                      : `Move ${task.title} before ${previousTask.title}`
-                  }
-                  aria-describedby={isMutating ? mutationReasonId : undefined}
-                  className="task-option"
-                  disabled={isMutating || previousTask === undefined}
-                  onClick={() => {
-                    if (previousTask !== undefined) {
-                      void runTaskMutation(() =>
-                        onReorderTask(task, previousTask, "before"),
-                      );
-                    }
-                  }}
-                  type="button"
-                >
-                  <CaretUpIcon aria-hidden="true" size={20} />
-                  <span>Move before</span>
-                  {previousTask === undefined ? <small>Already first</small> : null}
-                </button>
-                <button
-                  aria-label={
-                    nextTask === undefined
-                      ? `${task.title} is already last`
-                      : `Move ${task.title} after ${nextTask.title}`
-                  }
-                  aria-describedby={isMutating ? mutationReasonId : undefined}
-                  className="task-option"
-                  disabled={isMutating || nextTask === undefined}
-                  onClick={() => {
-                    if (nextTask !== undefined) {
-                      void runTaskMutation(() =>
-                        onReorderTask(task, nextTask, "after"),
-                      );
-                    }
-                  }}
-                  type="button"
-                >
-                  <CaretDownIcon aria-hidden="true" size={20} />
-                  <span>Move after</span>
-                  {nextTask === undefined ? <small>Already last</small> : null}
-                </button>
-              </div>
-            </fieldset>
+            
             {actionError === undefined ? null : (
               <div className="task-action-error">
                 <p className="field-error">{actionError}</p>
@@ -2699,20 +2626,7 @@ function TaskCard({
                 )}
               </div>
             )}
-            <div style={{marginTop: '24px'}}>
-              <EntityDialog
-                dialogTitle="Rename task"
-                initialValue={task.title}
-                inputId={`rename-task-${task.id}`}
-                label="Task title"
-                onSubmit={(title) => onRenameTask(task, title)}
-                placeholder="Task title"
-                submitLabel="Save changes"
-                triggerClassName="button-secondary"
-                triggerIcon={<PencilSimpleIcon aria-hidden="true" size={16} style={{marginRight: '8px'}} />}
-                triggerLabel={`Rename task ${task.title}`}
-              />
-            </div>
+            
           </div>
         </dialog>
       ) : null}
@@ -2731,6 +2645,8 @@ interface TaskDetailsDialogProps {
   ) => Promise<ChecklistItem>;
   setChecklistState: Dispatch<SetStateAction<ChecklistLoadState>>;
   task: Task;
+
+  onRenameTask: (task: Task, title: string) => Promise<unknown>;
 }
 
 function TaskDetailsDialog({
@@ -2740,6 +2656,7 @@ function TaskDetailsDialog({
   onSetChecklistItemCompleted,
   setChecklistState,
   task,
+  onRenameTask,
 }: TaskDetailsDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isOpening, setIsOpening] = useState(false);
@@ -2886,7 +2803,7 @@ function TaskDetailsDialog({
 
   return (
     <>
-      <h4 className="task-title-heading">
+      <h4 className="task-title-heading" style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
         <button
           aria-busy={isOpening}
           aria-label={`Open task details for ${task.title}`}
@@ -2897,7 +2814,18 @@ function TaskDetailsDialog({
         >
           {task.title}
         </button>
-      </h4>
+      <EntityDialog
+          dialogTitle="Rename task"
+          initialValue={task.title}
+          inputId={`rename-task-${task.id}`}
+          label="Task title"
+          onSubmit={(title) => onRenameTask(task, title)}
+          placeholder="Task title"
+          submitLabel="Save changes"
+          triggerClassName="inline-edit-button"
+          triggerIcon={<PencilSimpleIcon aria-hidden="true" size={14} />}
+          triggerLabel={`Rename task ${task.title}`}
+        /></h4>
       {isOpen ? (
         <dialog
           aria-labelledby={titleId}
