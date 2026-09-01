@@ -179,6 +179,25 @@ Exit gate:
 - No unnecessary permissions or network requests.
 - Seven-day owner trial completed with issues recorded.
 
+## M7 — Rich notes and view modal
+
+Outcome:
+
+Improve the note reading experience and support lightweight text formatting.
+
+In scope:
+
+- A dedicated view modal for reading notes, keeping the inbox view compact.
+- The note composer continues to accept raw text.
+- The view modal renders lightweight Markdown formatting (headings, checklists, blockquotes).
+- Safe rendering using a sanitized library to prevent XSS (no arbitrary HTML execution).
+
+Exit gate:
+
+- Note view modal opens on note click and is fully keyboard accessible.
+- Markdown syntax renders correctly as headings, checklists, or blockquotes in the view modal.
+- Cross-Site Scripting (XSS) prevention is validated.
+
 ## Post-MVP candidates
 
 These require fresh discovery and are not commitments:

@@ -38,6 +38,8 @@ Acceptance criteria:
 - A note remains unlinked when no target is selected.
 - Editing, reordering, and manual deletion persist after reopening New Tab.
 - Deletion is explicit; age or completion never auto-deletes a note.
+- The note composer accepts raw text.
+- Notes are read via a dedicated view modal that supports rendering lightweight Markdown formatting (headings, checklists, quotes).
 
 ### R-003 — Reminder lifecycle
 

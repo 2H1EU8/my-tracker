@@ -345,8 +345,8 @@ must use the same append/reorder rules and retain the named controls.
   1–10,000 characters after trimming and keep internal line breaks.
 - Keep invalid content in the field for correction.
 - Connect inline error text to the input with `aria-describedby`.
-- Render all user titles as text, never HTML or executable content.
-
+- Render all user titles as text, never raw HTML or executable content.
+- Note bodies are entered as raw text, but viewed via a dedicated modal that safely renders lightweight Markdown (headings, checklists, quotes).
 ### Deferred lifecycle states
 
 - Archived goals remain recoverable and visually distinct when archive ships.

@@ -83,7 +83,7 @@ before reminder delivery introduces background and permission concerns in M3.
 - Task deadlines, task descriptions, or priority editing.
 - Checklist rename, reorder, or deletion. Items append in M2; those lifecycle
   operations require a later explicit scope decision.
-- Note-to-task conversion, Markdown/HTML rendering, search, archive, tags, bulk
+- Note-to-task conversion, rich note view modals, Markdown rendering (deferred to M7), search, archive, tags, bulk
   deletion, or automatic cleanup.
 - Goal/phase/task deletion, goal/phase reordering, drag-and-drop polish, import,
   export, restore, settings, and M6 visual hardening.
