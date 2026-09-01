@@ -312,7 +312,7 @@ export class TrackerService {
     );
   }
 
-  async createTask(goalId: string, phaseId: string, rawTitle: string): Promise<Task> {
+  async createTask(goalId: string, phaseId: string, rawTitle: string, status: import("../domain/model").TaskStatus = "todo"): Promise<Task> {
     const title = normalizeTitle(rawTitle);
     const now = this.dependencies.clock();
 
@@ -342,13 +342,14 @@ export class TrackerService {
           goalId,
           phaseId,
           title,
-          status: "todo",
+          status: status as any,
           priority: "medium",
           position: todoSiblings.length,
           notifyAtDue: true,
           createdAt: now,
           updatedAt: now,
-        };
+          ...(status === "done" ? { completedAt: now } : {}),
+        } as Task;
 
         await repositories.tasks.put(task);
         return task;
@@ -496,6 +497,46 @@ export class TrackerService {
         );
         await repositories.notes.put(edited);
         return edited;
+      },
+    );
+  }
+
+
+  async renameChecklistItem(taskId: string, checklistItemId: string, rawTitle: string): Promise<ChecklistItem> {
+    const title = normalizeTitle(rawTitle);
+    return this.database.transaction(
+      ["tasks", "checklistItems"],
+      "readwrite",
+      async (repositories) => {
+        const checklistItem = await repositories.checklistItems.get(checklistItemId);
+        if (checklistItem === undefined || checklistItem.taskId !== taskId) {
+          throw new DomainError("not_found", "Checklist item not found.");
+        }
+        if (checklistItem.title === title) {
+          return checklistItem;
+        }
+
+        const updated: ChecklistItem = {
+          ...checklistItem,
+          title,
+          updatedAt: this.dependencies.clock(),
+        };
+        await repositories.checklistItems.put(updated);
+        return updated;
+      },
+    );
+  }
+
+  async deleteChecklistItem(taskId: string, checklistItemId: string): Promise<void> {
+    return this.database.transaction(
+      ["tasks", "checklistItems"],
+      "readwrite",
+      async (repositories) => {
+        const checklistItem = await repositories.checklistItems.get(checklistItemId);
+        if (checklistItem === undefined || checklistItem.taskId !== taskId) {
+          throw new DomainError("not_found", "Checklist item not found.");
+        }
+        await repositories.checklistItems.delete(checklistItemId);
       },
     );
   }
