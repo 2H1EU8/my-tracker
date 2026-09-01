@@ -85,6 +85,7 @@ interface EntityDialogProps {
   triggerClassName?: string;
   triggerIcon: ReactNode;
   triggerLabel: string;
+  multiline?: boolean;
 }
 
 function getErrorMessage(error: unknown): string {
@@ -744,6 +745,7 @@ function EntityDialog({
   triggerClassName,
   triggerIcon,
   triggerLabel,
+  multiline = false,
 }: EntityDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [draft, setDraft] = useState(initialValue);
@@ -1321,7 +1323,7 @@ export function TrackerApp({ service }: TrackerAppProps) {
                 "local",
               );
             }}
-            onCreateTask={(title) => {
+            onCreateTask={(title, status = "todo") => {
               if (selectedPhase === undefined) {
                 return Promise.reject(new DomainError("not_found", "Select a phase first."));
               }
@@ -1332,11 +1334,12 @@ export function TrackerApp({ service }: TrackerAppProps) {
                     selectedGoal.goal.id,
                     selectedPhase.phase.id,
                     title,
+                    status
                   );
                   createdId = task.id;
                   return task;
                 },
-                "Task created in Todo.",
+                "Task created.",
                 () =>
                   createdId === ""
                     ? undefined
@@ -1478,12 +1481,7 @@ function HomeView({
 }: HomeViewProps) {
   return (
     <div className="home-layout">
-      <QuickNoteComposer
-        goals={goals}
-        isReady={inbox !== undefined && inboxError === undefined}
-        onCreate={onCreateNote}
-        workspaceFailed={goalsError !== undefined}
-      />
+
       <div className="home-columns">
         <InboxView
           goals={goals}
@@ -1501,6 +1499,18 @@ function HomeView({
           <div className="goals-header-actions">
             <p className="goals-count-label">Goals &middot; {goals?.length ?? 0}</p>
             <div style={{ display: "flex", gap: "8px" }}>
+              <EntityDialog
+                dialogTitle="New Note"
+                inputId="new-note-body"
+                label="Note content"
+                multiline={true}
+                onSubmit={(body) => onCreateNote(body, { kind: "none" })}
+                placeholder="Capture a note or reminder"
+                submitLabel="Create note"
+                triggerClassName="icon-button"
+                triggerIcon={<PlusIcon aria-hidden="true" size={18} />}
+                triggerLabel="New note"
+              />
               <BackupSettingsDialog onExport={onExportBackup} onRestore={onRestoreBackup} />
               <ImportPlanDialog onImport={onImportPlan} />
             </div>
@@ -2173,7 +2183,7 @@ interface GoalViewProps {
   onBack: () => void;
   onCreateChecklistItem: (taskId: string, title: string) => Promise<ChecklistItem>;
   onCreatePhase: (title: string) => Promise<unknown>;
-  onCreateTask: (title: string) => Promise<unknown>;
+  onCreateTask: (title: string, status?: import("../../domain/model").TaskStatus) => Promise<unknown>;
   onGetTaskChecklist: (taskId: string) => Promise<TaskChecklistSnapshot>;
   onMoveTask: (task: Task, status: TaskStatus, phaseId?: string) => Promise<unknown>;
   onRenameGoal: (title: string) => Promise<unknown>;
@@ -2336,7 +2346,7 @@ interface BoardProps {
   checklistProgress: ChecklistProgressByTask | undefined;
   phaseTree: PhaseTree;
   onCreateChecklistItem: (taskId: string, title: string) => Promise<ChecklistItem>;
-  onCreateTask: (title: string) => Promise<unknown>;
+  onCreateTask: (title: string, status?: import("../../domain/model").TaskStatus) => Promise<unknown>;
   onGetTaskChecklist: (taskId: string) => Promise<TaskChecklistSnapshot>;
   onMoveTask: (task: Task, status: TaskStatus, phaseId?: string) => Promise<unknown>;
   onRenamePhase: (title: string) => Promise<unknown>;
@@ -2385,18 +2395,7 @@ function Board({
         />
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
-        <EntityDialog
-          dialogTitle="Create task"
-          inputId="new-task-title"
-          label="Task title"
-          onSubmit={onCreateTask}
-          placeholder="Next useful step"
-          submitLabel="Create task"
-          triggerIcon={<PlusIcon aria-hidden="true" size={16} style={{marginRight: '6px'}} />}
-          triggerLabel="New task"
-        />
-      </div>
+
 
       {phaseTree.tasks.length === 0 ? (
         <p className="board-empty-message">No tasks in this phase yet.</p>
@@ -2427,8 +2426,24 @@ function Board({
                 }
               }}
             >
-              <header style={{ pointerEvents: dragOverCol === status ? 'none' : 'auto' }}>
+              <header 
+                className="kanban-column-header" 
+                style={{ pointerEvents: dragOverCol === status ? 'none' : 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
                 <h3>{STATUS_LABELS[status]} &middot; {tasks.length}</h3>
+                <div className="kanban-column-actions">
+                  <EntityDialog
+                    dialogTitle={`Create task in ${STATUS_LABELS[status]}`}
+                    inputId={`new-task-title-${status}`}
+                    label="Task title"
+                    onSubmit={(title) => onCreateTask(title, status)}
+                    placeholder="Next useful step"
+                    submitLabel="Create task"
+                    triggerClassName="icon-button column-add-btn"
+                    triggerIcon={<PlusIcon aria-hidden="true" size={16} />}
+                    triggerLabel=""
+                  />
+                </div>
               </header>
               {tasks.length > 0 ? (
                 <div className="task-list" style={{ pointerEvents: dragOverCol === status ? 'none' : 'auto' }}>

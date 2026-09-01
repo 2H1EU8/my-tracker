@@ -1802,3 +1802,19 @@ select[aria-invalid="true"] {
 .note-card[draggable="true"]:active, .task-card[draggable="true"]:active {
   cursor: grabbing;
 }
+
+.kanban-column-actions {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.kanban-column:hover .kanban-column-actions {
+  opacity: 1;
+}
+.column-add-btn {
+  padding: 4px;
+  min-height: auto;
+  border-radius: 4px;
+}
+.column-add-btn:hover {
+  background: var(--surface-2);
+}

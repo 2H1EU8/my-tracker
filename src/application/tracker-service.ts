@@ -312,7 +312,7 @@ export class TrackerService {
     );
   }
 
-  async createTask(goalId: string, phaseId: string, rawTitle: string): Promise<Task> {
+  async createTask(goalId: string, phaseId: string, rawTitle: string, status: import("../domain/model").TaskStatus = "todo"): Promise<Task> {
     const title = normalizeTitle(rawTitle);
     const now = this.dependencies.clock();
 
@@ -342,13 +342,14 @@ export class TrackerService {
           goalId,
           phaseId,
           title,
-          status: "todo",
+          status: status as any,
           priority: "medium",
           position: todoSiblings.length,
           notifyAtDue: true,
           createdAt: now,
           updatedAt: now,
-        };
+          ...(status === "done" ? { completedAt: now } : {}),
+        } as Task;
 
         await repositories.tasks.put(task);
         return task;
