@@ -1,3 +1,11 @@
+class InMemoryReminderRepository {
+  private reminders: any[] = [];
+  async get(id: any) { return this.reminders.find(r => r.id === id); }
+  async list() { return this.reminders; }
+  async put(r: any) { this.reminders = this.reminders.filter(x => x.id !== r.id); this.reminders.push(r); }
+  async putMany(rs: any[]) { for (const r of rs) { await this.put(r); } }
+  async delete(id: any) { this.reminders = this.reminders.filter(r => r.id !== id); }
+}
 import type {
   ChecklistItemRepository,
   GoalRepository,

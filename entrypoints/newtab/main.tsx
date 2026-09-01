@@ -1,3 +1,5 @@
+import { BrowserAlarmScheduler } from "../../src/infrastructure/browser/alarms";
+import { BrowserNotificationService } from "../../src/infrastructure/browser/notifications";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { TrackerService } from "../../src/application/tracker-service";
@@ -17,6 +19,8 @@ const database = new QaFaultDatabase(indexedDbDatabase, {
 const service = new TrackerService(database, {
   clock: () => new Date().toISOString(),
   createId: () => crypto.randomUUID(),
+  alarms: new BrowserAlarmScheduler(),
+  notifications: new BrowserNotificationService(),
 });
 const root = document.querySelector<HTMLDivElement>("#root");
 

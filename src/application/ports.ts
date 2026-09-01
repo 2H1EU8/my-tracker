@@ -1,11 +1,12 @@
-import type { ChecklistItem, Goal, Note, Phase, Task } from "../domain/model";
+import type { ChecklistItem, Goal, Note, Phase, Task, Reminder } from "../domain/model";
 
 export type StoreName =
   | "goals"
   | "phases"
   | "tasks"
   | "checklistItems"
-  | "notes";
+  | "notes"
+  | "reminders";
 export type TransactionMode = "readonly" | "readwrite";
 
 export interface GoalRepository {
@@ -47,12 +48,21 @@ export interface NoteRepository {
   delete(id: string): Promise<void>;
 }
 
+export interface ReminderRepository {
+  get(id: string): Promise<Reminder | undefined>;
+  list(): Promise<Reminder[]>;
+  put(reminder: Reminder): Promise<void>;
+  putMany(reminders: readonly Reminder[]): Promise<void>;
+  delete(id: string): Promise<void>;
+}
+
 export interface TrackerRepositories {
   goals: GoalRepository;
   phases: PhaseRepository;
   tasks: TaskRepository;
   checklistItems: ChecklistItemRepository;
   notes: NoteRepository;
+  reminders: ReminderRepository;
 }
 
 export interface TrackerDatabase {
@@ -63,7 +73,22 @@ export interface TrackerDatabase {
   ): Promise<T>;
 }
 
+
+export interface AlarmScheduler {
+  scheduleReminderAlarm(id: string, dueAt: string): Promise<void>;
+  cancelReminderAlarm(id: string): Promise<void>;
+  scheduleTaskDeadlineAlarm(id: string, dueAt: string): Promise<void>;
+  cancelTaskDeadlineAlarm(id: string): Promise<void>;
+}
+
+export interface NotificationService {
+  notifyReminder(id: string, title: string, details?: string): Promise<void>;
+  notifyTaskDeadline(id: string, title: string): Promise<void>;
+}
+
 export interface ApplicationDependencies {
+  alarms: AlarmScheduler;
+  notifications: NotificationService;
   clock: () => string;
   createId: () => string;
 }

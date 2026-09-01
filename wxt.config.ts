@@ -5,7 +5,7 @@ export default defineConfig({
   manifest: {
     name: "My Tracker",
     description: "A calm, local-first New Tab for personal project planning.",
-    permissions: [],
+    permissions: ["alarms", "notifications"],
     host_permissions: [],
   },
 });

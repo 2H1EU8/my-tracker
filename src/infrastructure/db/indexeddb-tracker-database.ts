@@ -3,17 +3,18 @@ import type {
   GoalRepository,
   NoteRepository,
   PhaseRepository,
+  ReminderRepository,
   StoreName,
   TaskRepository,
   TrackerDatabase,
   TrackerRepositories,
   TransactionMode,
 } from "../../application/ports";
-import type { ChecklistItem, Goal, Note, Phase, Task } from "../../domain/model";
+import type { ChecklistItem, Goal, Note, Phase, Task, Reminder } from "../../domain/model";
 import { sortByPosition } from "../../domain/rules";
 
 export const TRACKER_DATABASE_NAME = "my-tracker";
-export const TRACKER_DATABASE_VERSION = 2;
+export const TRACKER_DATABASE_VERSION = 3;
 
 const INDEX_GOAL_POSITION = "by-position";
 const INDEX_PHASE_GOAL_POSITION = "by-goal-position";
@@ -109,6 +110,10 @@ function openDatabase(factory: IDBFactory, name: string): Promise<IDBDatabase> {
           ["linkedTaskId", "position", "id"],
           { unique: true },
         );
+      }
+
+      if (!database.objectStoreNames.contains("reminders")) {
+        database.createObjectStore("reminders", { keyPath: "id" });
       }
     });
 
@@ -331,6 +336,35 @@ class IndexedDbNoteRepository implements NoteRepository {
   }
 }
 
+class IndexedDbReminderRepository implements ReminderRepository {
+  constructor(private readonly transaction: IDBTransaction) {}
+
+  private get store(): IDBObjectStore {
+    return this.transaction.objectStore("reminders");
+  }
+
+  get(id: string): Promise<Reminder | undefined> {
+    return requestResult(this.store.get(id) as IDBRequest<Reminder | undefined>);
+  }
+
+  async list(): Promise<Reminder[]> {
+    const reminders = await requestResult(this.store.getAll() as IDBRequest<Reminder[]>);
+    return reminders.sort((a, b) => a.dueAt.localeCompare(b.dueAt));
+  }
+
+  async put(reminder: Reminder): Promise<void> {
+    await requestResult(this.store.put(reminder));
+  }
+
+  async putMany(reminders: readonly Reminder[]): Promise<void> {
+    await Promise.all(reminders.map((reminder) => requestResult(this.store.put(reminder))));
+  }
+
+  async delete(id: string): Promise<void> {
+    await requestResult(this.store.delete(id));
+  }
+}
+
 function repositoriesFor(transaction: IDBTransaction): TrackerRepositories {
   return {
     goals: new IndexedDbGoalRepository(transaction),
@@ -338,6 +372,7 @@ function repositoriesFor(transaction: IDBTransaction): TrackerRepositories {
     tasks: new IndexedDbTaskRepository(transaction),
     checklistItems: new IndexedDbChecklistItemRepository(transaction),
     notes: new IndexedDbNoteRepository(transaction),
+    reminders: new IndexedDbReminderRepository(transaction),
   };
 }
 

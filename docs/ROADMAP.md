@@ -92,6 +92,10 @@ Exit gate:
 
 ## M3 — Reminder delivery
 
+Status: implementation complete and automated gates passing; real unpacked-Chrome QA remains pending, so M3 is not yet accepted.
+
+Ready work item: [`docs/work-items/M3_REMINDER_DELIVERY.md`](work-items/M3_REMINDER_DELIVERY.md)
+
 Outcome:
 
 Create a date/time reminder or task deadline and receive a system notification even when New Tab is not open.

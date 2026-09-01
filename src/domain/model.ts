@@ -120,12 +120,53 @@ export interface WorkspaceSnapshot {
   goals: GoalTree[];
 }
 
+export interface ReminderBase {
+  id: EntityId;
+  title: string;
+  details?: string;
+  dueAt: UtcTimestamp;
+  timeZone: string;
+  createdAt: UtcTimestamp;
+  updatedAt: UtcTimestamp;
+}
+
+export type Reminder = ReminderBase &
+  (
+    | {
+        state: "scheduled";
+        firedAt?: never;
+      }
+    | {
+        state: "fired";
+        firedAt: UtcTimestamp;
+      }
+  ) &
+  (
+    | {
+        linkedGoalId?: never;
+        linkedTaskId?: never;
+      }
+    | {
+        linkedGoalId: EntityId;
+        linkedTaskId?: never;
+      }
+    | {
+        linkedGoalId?: never;
+        linkedTaskId: EntityId;
+      }
+  );
+
 export interface NoteInboxItem {
   kind: "note";
   note: Note;
 }
 
-export type InboxItem = NoteInboxItem;
+export interface ReminderInboxItem {
+  kind: "reminder";
+  reminder: Reminder;
+}
+
+export type InboxItem = NoteInboxItem | ReminderInboxItem;
 
 export interface InboxSnapshot {
   items: InboxItem[];
