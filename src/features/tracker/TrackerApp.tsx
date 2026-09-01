@@ -1,3 +1,4 @@
+
 import {
   ArrowLeftIcon,
   CaretDownIcon,
@@ -14,6 +15,7 @@ import {
   UploadSimpleIcon,
   TrashSimpleIcon,
   XIcon,
+  GearIcon,
 } from "@phosphor-icons/react";
 import {
   type Dispatch,
@@ -458,11 +460,15 @@ function BackupSettingsDialog({ onExport, onRestore }: BackupSettingsDialogProps
       </button>
 
       {isOpen && (
-        <DialogModal
+        <dialog
+          className="entity-dialog"
           onClose={() => setIsOpen(false)}
-          restoreFocusRef={triggerRef}
-          title="Settings and Backup"
+          ref={(el) => { if (el && isOpen && !el.open) { el.showModal(); } }}
         >
+          <div className="dialog-header">
+            <h2>Settings and Backup</h2>
+            <button className="icon-button dialog-close" onClick={() => setIsOpen(false)}><XIcon size={20}/></button>
+          </div>
           {successSummary ? (
             <div className="import-success">
               <p>{successSummary}</p>
@@ -540,7 +546,7 @@ function BackupSettingsDialog({ onExport, onRestore }: BackupSettingsDialogProps
               </div>
             </div>
           )}
-        </DialogModal>
+        </dialog>
       )}
     </>
   );
@@ -1237,7 +1243,7 @@ export function TrackerApp({ service }: TrackerAppProps) {
               );
             }}
             onDeleteNote={(note) => {
-              const notes = inbox?.items.map((item) => item.note) ?? [];
+              const notes = inbox?.items.filter(item => item.kind === "note").map((item: any) => item.note) ?? [];
               const index = notes.findIndex((candidate) => candidate.id === note.id);
               const focusId = notes[index + 1]?.id ?? notes[index - 1]?.id;
               return performMutation(
@@ -1285,6 +1291,8 @@ export function TrackerApp({ service }: TrackerAppProps) {
             }
             onRetryGoals={loadWorkspace}
             onRetryInbox={loadInbox}
+                      onExportBackup={onExportBackup}
+            onRestoreBackup={onRestoreBackup}
           />
         ) : (
           <GoalView
@@ -1469,108 +1477,115 @@ function HomeView({
   onRestoreBackup,
 }: HomeViewProps) {
   return (
-    <div className="home-stack">
+    <div className="home-layout">
       <QuickNoteComposer
         goals={goals}
         isReady={inbox !== undefined && inboxError === undefined}
         onCreate={onCreateNote}
         workspaceFailed={goalsError !== undefined}
       />
-      <InboxView
-        goals={goals}
-        inbox={inbox}
-        loadError={inboxError}
-        onDelete={onDeleteNote}
-        onEdit={onEditNote}
-        onReorder={onReorderNote}
-        onRetry={onRetryInbox}
-        workspaceFailed={goalsError !== undefined}
-      />
+      <div className="home-columns">
+        <InboxView
+          goals={goals}
+          inbox={inbox}
+          loadError={inboxError}
+          onDelete={onDeleteNote}
+          onEdit={onEditNote}
+          onReorder={onReorderNote}
+          onRetry={onRetryInbox}
+          workspaceFailed={goalsError !== undefined}
+        />
 
-      <section aria-labelledby="goals-title">
-        <div className="section-heading page-heading">
-          <h1 id="goals-title">Goals</h1>
-          <div style={{ display: "flex", gap: "8px" }}>
-            <BackupSettingsDialog onExport={onExportBackup} onRestore={onRestoreBackup} />
-            <ImportPlanDialog onImport={onImportPlan} />
-            <EntityDialog
-            dialogTitle="Create goal"
-            inputId="new-goal-title"
-            label="Goal title"
-            onSubmit={onCreateGoal}
-            placeholder="Ship the next release"
-            submitLabel="Create goal"
-            triggerIcon={<PlusIcon aria-hidden="true" size={20} weight="bold" />}
-            triggerLabel="Create goal"
-          />
+        <section aria-labelledby="goals-title" className="goals-column">
+          <h1 id="goals-title" className="sr-only">Goals</h1>
+          <div className="goals-header-actions">
+            <p className="goals-count-label">Goals &middot; {goals?.length ?? 0}</p>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <BackupSettingsDialog onExport={onExportBackup} onRestore={onRestoreBackup} />
+              <ImportPlanDialog onImport={onImportPlan} />
+            </div>
           </div>
-        </div>
 
-        {goalsError !== undefined ? (
-          <div className="error-banner section-error">
-            <p>{goalsError}</p>
-            <button onClick={() => void onRetryGoals()} type="button">
-              Retry goals
-            </button>
-          </div>
-        ) : goals === undefined ? (
-          <div aria-label="Loading local goals" className="skeleton-grid">
-            <div className="skeleton-card" />
-            <div className="skeleton-card" />
-            <div className="skeleton-card" />
-          </div>
-        ) : goals.length === 0 ? (
-          <div className="empty-state">
-            <h2>No goals yet</h2>
-            <p>Use the plus button to create your first goal.</p>
-          </div>
-        ) : (
-          <div className="goal-grid">
-            {goals.map((goalTree, index) => {
-              const updatedLabel = formatUpdatedAt(goalTree.goal.updatedAt);
-              return (
-                <article
-                  className={`goal-pin note-${noteColor(goalTree.goal.id)}`}
-                  data-goal-id={goalTree.goal.id}
-                  key={goalTree.goal.id}
-                >
-                  <div
-                    aria-label={`Open goal ${goalTree.goal.title}. Updated ${updatedLabel}. Double-click or press Enter.`}
-                    className="goal-open-surface"
-                    onDoubleClick={() => onOpenGoal(goalTree)}
-                    onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        onOpenGoal(goalTree);
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
+          {goalsError !== undefined ? (
+            <div className="error-banner section-error">
+              <p>{goalsError}</p>
+              <button onClick={() => void onRetryGoals()} type="button">
+                Retry goals
+              </button>
+            </div>
+          ) : goals === undefined ? (
+            <div aria-label="Loading local goals" className="skeleton-grid">
+              <div className="skeleton-card" />
+              <div className="skeleton-card" />
+            </div>
+          ) : (
+            <div className="goal-grid">
+              {goals.map((goalTree, index) => {
+                const totalTasks = goalTree.phases.reduce((acc, phase) => acc + phase.tasks.length, 0);
+                const isEven = index % 2 === 0;
+                const tiltClass = isEven ? "tilt-left" : "tilt-right";
+                
+                return (
+                  <article
+                    className={`goal-pin note-${noteColor(goalTree.goal.id)} ${tiltClass}`} data-testid={`goal-pin-${goalTree.goal.id}`}
+                    data-goal-id={goalTree.goal.id}
+                    key={goalTree.goal.id}
                   >
-                    <span className="goal-index" aria-hidden="true">
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <h2>{goalTree.goal.title}</h2>
-                    <time dateTime={goalTree.goal.updatedAt}>{updatedLabel}</time>
-                  </div>
-                  <EntityDialog
-                    dialogTitle="Rename goal"
-                    initialValue={goalTree.goal.title}
-                    inputId={`rename-goal-${goalTree.goal.id}`}
-                    label="Goal title"
-                    onSubmit={(title) => onRenameGoal(goalTree.goal, title)}
-                    placeholder="Goal title"
-                    submitLabel="Save changes"
-                    triggerClassName="card-icon goal-edit"
-                    triggerIcon={<PencilSimpleIcon aria-hidden="true" size={18} />}
-                    triggerLabel={`Rename goal ${goalTree.goal.title}`}
-                  />
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </section>
+                    <div
+                      aria-label={`Open goal ${goalTree.goal.title}. Double-click or press Enter.`}
+                      className="goal-open-surface" data-testid={`goal-open-surface-${goalTree.goal.id}`}
+                      onDoubleClick={() => onOpenGoal(goalTree)}
+                      onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          onOpenGoal(goalTree);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <h2 className="goal-title">{goalTree.goal.title}</h2>
+                      
+                      <div className="goal-progress-track">
+                        <div className="goal-progress-fill" style={{ width: totalTasks > 0 ? '50%' : '0%' }}></div>
+                      </div>
+                      
+                      <p className="goal-meta">
+                        {goalTree.phases.length} phases &middot; {totalTasks} tasks left
+                      </p>
+                    </div>
+                    
+                    <EntityDialog
+                      dialogTitle="Rename goal"
+                      initialValue={goalTree.goal.title}
+                      inputId={`rename-goal-${goalTree.goal.id}`}
+                      label="Goal title"
+                      onSubmit={(title) => onRenameGoal(goalTree.goal, title)}
+                      placeholder="Goal title"
+                      submitLabel="Save changes"
+                      triggerClassName="card-icon goal-edit"
+                      triggerIcon={<PencilSimpleIcon aria-hidden="true" size={18} />}
+                      triggerLabel={`Rename goal ${goalTree.goal.title}`}
+                    />
+                  </article>
+                );
+              })}
+              
+              <EntityDialog
+                dialogTitle="Create goal"
+                inputId="new-goal-title"
+                label="Goal title"
+                onSubmit={onCreateGoal}
+                placeholder="New goal"
+                submitLabel="Create goal"
+                triggerClassName="new-goal-button"
+                triggerIcon={<PlusIcon aria-hidden="true" size={15} />}
+                triggerLabel="New goal"
+              />
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
@@ -1589,28 +1604,20 @@ function QuickNoteComposer({
   workspaceFailed,
 }: QuickNoteComposerProps) {
   const [draft, setDraft] = useState("");
-  const [linkDraft, setLinkDraft] = useState<LinkDraft>({ kind: "none" });
-  const [isLinkOpen, setIsLinkOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string>();
   const formRef = useRef<HTMLFormElement>(null);
-  const errorId = "quick-note-error";
-  const hintId = "quick-note-hint";
+  const inputRef = useRef<HTMLInputElement>(null);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!isReady || isSaving) {
-      return;
-    }
+    if (!isReady || isSaving || draft.trim().length === 0) return;
 
     setIsSaving(true);
     setError(undefined);
     try {
-      const linkTarget = linkTargetForDraft(linkDraft);
-      await onCreate(draft, linkTarget);
+      await onCreate(draft, { kind: "none" });
       setDraft("");
-      setLinkDraft({ kind: "none" });
-      setIsLinkOpen(false);
     } catch (submissionError) {
       setError(getErrorMessage(submissionError));
     } finally {
@@ -1620,66 +1627,21 @@ function QuickNoteComposer({
 
   return (
     <section aria-labelledby="quick-note-title" className="quick-note-section">
-      <form aria-busy={isSaving} onSubmit={submit} ref={formRef}>
-        <label id="quick-note-title" htmlFor="quick-note-body">
-          Quick note
-        </label>
-        <textarea
-          aria-describedby={`${hintId}${error === undefined ? "" : ` ${errorId}`}`}
-          aria-invalid={error === undefined ? undefined : true}
-          disabled={!isReady}
-          id="quick-note-body"
-          onChange={(event) => setDraft(event.currentTarget.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-              event.preventDefault();
-              formRef.current?.requestSubmit();
-            }
-          }}
-          placeholder="Capture a thought, bug, or next step"
-          readOnly={isSaving}
-          value={draft}
-        />
-        <p className="field-help" id={hintId}>
-          Control or Command + Enter to add. Enter starts a new line.
-        </p>
-        <button
-          aria-expanded={isLinkOpen}
-          className="link-disclosure"
+      <h2 id="quick-note-title" className="sr-only">Capture a note</h2>
+      <form aria-busy={isSaving} onSubmit={submit} ref={formRef} className="capture-bar-form" data-testid="capture-bar-form">
+        <PlusIcon aria-hidden="true" size={16} color="#9C948A" />
+        <input
+          className="capture-bar-input" data-testid="capture-bar-input"
           disabled={!isReady || isSaving}
-          onClick={() => setIsLinkOpen((current) => !current)}
-          type="button"
-        >
-          <LinkSimpleIcon aria-hidden="true" size={18} />
-          {isLinkOpen ? "Hide link" : "Add link"}
-        </button>
-        {isLinkOpen ? (
-          <OptionalLinkFields
-            disabled={isSaving}
-            draft={linkDraft}
-            goals={goals}
-            idPrefix="quick-note"
-            onChange={setLinkDraft}
-            workspaceFailed={workspaceFailed}
-          />
-        ) : null}
-        {error === undefined ? null : (
-          <p className="field-error" id={errorId}>
-            {error}
-          </p>
-        )}
-        {!isReady ? (
-          <p className="field-help" role="status">
-            Loading the local notes repository before capture becomes available.
-          </p>
-        ) : null}
-        <div className="composer-actions">
-          <button className="button-primary" disabled={!isReady || isSaving} type="submit">
-            <PlusIcon aria-hidden="true" size={18} weight="bold" />
-            {isSaving ? "Adding…" : error === undefined ? "Add note" : "Retry"}
-          </button>
-        </div>
+          onChange={(event) => setDraft(event.currentTarget.value)}
+          placeholder="Capture a note or reminder"
+          ref={inputRef}
+          value={draft}
+          aria-invalid={error === undefined ? undefined : true}
+        />
+        <span className="shortcut-hint">N</span>
       </form>
+      {error && <p className="field-error">{error}</p>}
     </section>
   );
 }
@@ -1709,34 +1671,25 @@ function InboxView({
   onRetry,
   workspaceFailed,
 }: InboxViewProps) {
-  const notes = inbox?.items.map((item) => item.note);
+  const notes = inbox?.items.filter(item => item.kind === "note").map((item: any) => item.note);
   return (
-    <section aria-labelledby="inbox-title" className="inbox-section">
-      <div className="section-heading inbox-heading">
-        <h2 id="inbox-title">Inbox</h2>
-        <span
-          aria-label={notes === undefined ? "Loading notes" : `${notes.length} notes`}
-          className="task-count"
-        >
-          {notes === undefined ? "—" : notes.length}
-        </span>
-      </div>
+    <section aria-labelledby="inbox-title" className="inbox-column">
+      <h2 id="inbox-title" className="sr-only">Inbox</h2>
+      <p className="inbox-count-label">Inbox &middot; {notes === undefined ? "—" : notes.length}</p>
+      
       {loadError !== undefined ? (
         <div className="error-banner section-error">
           <p>{loadError}</p>
-          <button onClick={() => void onRetry()} type="button">
-            Retry inbox
-          </button>
+          <button onClick={() => void onRetry()} type="button">Retry inbox</button>
         </div>
       ) : notes === undefined ? (
         <div aria-label="Loading local notes" className="inbox-skeleton">
-          <div />
-          <div />
+          <div /><div />
         </div>
       ) : notes.length === 0 ? (
-        <p className="inbox-empty">No notes yet. Add one with Quick note.</p>
+        <p className="inbox-empty">No notes yet. Add one above.</p>
       ) : (
-        <div className="note-list">
+        <div className="inbox-list-compact">
           {notes.map((note, index) => (
             <NoteCard
               goals={goals}
@@ -1782,9 +1735,8 @@ function NoteCard({
   workspaceFailed,
 }: NoteCardProps) {
   const linkLabel = noteLinkLabel(note, goals);
-  const updatedLabel = formatUpdatedAt(note.updatedAt);
   return (
-    <article className="note-card" data-note-id={note.id} tabIndex={-1}>
+    <article className="note-card" data-testid={`note-card-${note.id}`} data-note-id={note.id} tabIndex={-1}>
       <div className="note-card-header">
         <p className="note-body">{note.body}</p>
         <div className="card-actions note-card-actions">
@@ -1803,8 +1755,7 @@ function NoteCard({
           />
         </div>
       </div>
-      {linkLabel === undefined ? null : <p className="note-context">{linkLabel}</p>}
-      <time dateTime={note.updatedAt}>Updated {updatedLabel}</time>
+      {linkLabel && <p className="note-context">{linkLabel}</p>}
     </article>
   );
 }
@@ -2271,56 +2222,56 @@ function GoalView({
 }: GoalViewProps) {
   return (
     <section>
-      <button
-        aria-label="Back to goals"
-        className="icon-button back-button"
-        data-tooltip="Back to goals"
-        onClick={onBack}
-        title="Back to goals"
-        type="button"
-      >
-        <ArrowLeftIcon aria-hidden="true" size={20} />
-      </button>
-      <div className="section-heading goal-heading">
-        <div className="title-actions">
-          <h1>{goalTree.goal.title}</h1>
-          <EntityDialog
-            dialogTitle="Rename goal"
-            initialValue={goalTree.goal.title}
-            inputId={`rename-goal-${goalTree.goal.id}`}
-            label="Goal title"
-            onSubmit={onRenameGoal}
-            placeholder="Goal title"
-            submitLabel="Save changes"
-            triggerIcon={<PencilSimpleIcon aria-hidden="true" size={18} />}
-            triggerLabel={`Rename goal ${goalTree.goal.title}`}
-          />
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            aria-label="Back to goals"
+            className="icon-button"
+            style={{ border: 'none', padding: '4px' }}
+            onClick={onBack}
+            title="Back to goals"
+            type="button"
+          >
+            <ArrowLeftIcon aria-hidden="true" size={20} />
+          </button>
+          <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 500 }}>{goalTree.goal.title}</h3>
         </div>
         <EntityDialog
-          dialogTitle="Create phase"
-          inputId="new-phase-title"
-          label="Phase title"
-          onSubmit={onCreatePhase}
-          placeholder="Foundation"
-          submitLabel="Create phase"
-          triggerIcon={<PlusIcon aria-hidden="true" size={20} weight="bold" />}
-          triggerLabel="Create phase"
+          dialogTitle="Rename goal"
+          initialValue={goalTree.goal.title}
+          inputId={`rename-goal-${goalTree.goal.id}`}
+          label="Goal title"
+          onSubmit={onRenameGoal}
+          placeholder="Goal title"
+          submitLabel="Save changes"
+          triggerClassName="button-secondary"
+          triggerIcon={<PencilSimpleIcon aria-hidden="true" size={12} style={{marginRight: '6px'}}/>}
+          triggerLabel={`Edit goal`}
         />
       </div>
 
-      {checklistProgressError === undefined ? null : (
+      {checklistProgressError !== undefined ? (
         <div className="error-banner section-error checklist-summary-error">
           <p>{checklistProgressError}</p>
           <button onClick={() => void onRetryChecklistProgress()} type="button">
             Retry checklist summaries
           </button>
         </div>
-      )}
+      ) : null}
 
       {goalTree.phases.length === 0 ? (
-        <div className="empty-state">
+        <div className="empty-state" style={{marginTop: '24px'}}>
           <h2>Add a phase to organize this goal</h2>
-          <p>The board appears after the first phase is created.</p>
+          <EntityDialog
+            dialogTitle="Create phase"
+            inputId="new-phase-title"
+            label="Phase title"
+            onSubmit={onCreatePhase}
+            placeholder="Foundation"
+            submitLabel="Create phase"
+            triggerIcon={<PlusIcon aria-hidden="true" size={20} weight="bold" />}
+            triggerLabel="Create phase"
+          />
         </div>
       ) : (
         <>
@@ -2329,7 +2280,7 @@ function GoalView({
               <button
                 aria-current={phase.id === selectedPhase?.phase.id ? "page" : undefined}
                 className={phase.id === selectedPhase?.phase.id ? "phase-active" : undefined}
-                data-phase-id={phase.id}
+                data-phase-id={phase.id} data-testid={`phase-tab-${phase.id}`}
                 key={phase.id}
                 onClick={() => onSelectPhase(phase.id)}
                 type="button"
@@ -2337,6 +2288,16 @@ function GoalView({
                 {phase.title}
               </button>
             ))}
+            <EntityDialog
+              dialogTitle="Create phase"
+              inputId="new-phase-title"
+              label="Phase title"
+              onSubmit={onCreatePhase}
+              placeholder="Next phase"
+              submitLabel="Create phase"
+              triggerIcon={<PlusIcon aria-hidden="true" size={14} style={{marginRight:'4px'}} />}
+              triggerLabel="New phase"
+            />
           </nav>
           {selectedPhase === undefined ? null : (
             <Board
@@ -2393,21 +2354,11 @@ function Board({
 }: BoardProps) {
   return (
     <section className="board-section" aria-labelledby="phase-title">
-      <div className="section-heading board-heading">
-        <div className="title-actions">
-          <h2 id="phase-title">{phaseTree.phase.title}</h2>
-          <EntityDialog
-            dialogTitle="Rename phase"
-            initialValue={phaseTree.phase.title}
-            inputId={`rename-phase-${phaseTree.phase.id}`}
-            label="Phase title"
-            onSubmit={onRenamePhase}
-            placeholder="Phase title"
-            submitLabel="Save changes"
-            triggerIcon={<PencilSimpleIcon aria-hidden="true" size={18} />}
-            triggerLabel={`Rename phase ${phaseTree.phase.title}`}
-          />
-        </div>
+      <div className="section-heading board-heading" style={{ display: 'none' }}>
+        <h2 id="phase-title">{phaseTree.phase.title}</h2>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
         <EntityDialog
           dialogTitle="Create task"
           inputId="new-task-title"
@@ -2415,13 +2366,13 @@ function Board({
           onSubmit={onCreateTask}
           placeholder="Next useful step"
           submitLabel="Create task"
-          triggerIcon={<PlusIcon aria-hidden="true" size={20} weight="bold" />}
-          triggerLabel="Create task"
+          triggerIcon={<PlusIcon aria-hidden="true" size={16} style={{marginRight: '6px'}} />}
+          triggerLabel="New task"
         />
       </div>
 
       {phaseTree.tasks.length === 0 ? (
-        <p className="board-empty-message">No tasks in this phase yet. Add a task to Todo.</p>
+        <p className="board-empty-message">No tasks in this phase yet.</p>
       ) : null}
 
       <div className="board">
@@ -2432,12 +2383,9 @@ function Board({
           return (
             <section className="kanban-column" key={status}>
               <header>
-                <h3>{STATUS_LABELS[status]}</h3>
-                <span className="task-count">{tasks.length}</span>
+                <h3>{STATUS_LABELS[status]} &middot; {tasks.length}</h3>
               </header>
-              {tasks.length === 0 ? (
-                <p className="column-empty">No tasks in this status.</p>
-              ) : (
+              {tasks.length > 0 ? (
                 <div className="task-list">
                   {tasks.map((task, index) => (
                     <TaskCard
@@ -2455,7 +2403,7 @@ function Board({
                     />
                   ))}
                 </div>
-              )}
+              ) : null}
             </section>
           );
         })}
@@ -2571,7 +2519,13 @@ function TaskCard({
       : checklistProgress;
 
   return (
-    <article className="task-card" data-task-id={task.id} tabIndex={-1}>
+    <article 
+      className="task-card" 
+      data-task-id={task.id} 
+      tabIndex={-1} 
+      style={task.status === "in_progress" ? { border: '2px solid var(--focus)' } : task.status === "done" ? { opacity: 0.7 } : {}}
+      data-testid={`task-card-${task.id}`}
+    >
       <div className="task-card-header">
         <TaskDetailsDialog
           checklistState={checklistState}
@@ -2582,18 +2536,6 @@ function TaskCard({
           task={task}
         />
         <div className="card-actions">
-          <EntityDialog
-            dialogTitle="Rename task"
-            initialValue={task.title}
-            inputId={`rename-task-${task.id}`}
-            label="Task title"
-            onSubmit={(title) => onRenameTask(task, title)}
-            placeholder="Task title"
-            submitLabel="Save changes"
-            triggerClassName="card-icon"
-            triggerIcon={<PencilSimpleIcon aria-hidden="true" size={17} />}
-            triggerLabel={`Rename task ${task.title}`}
-          />
           <button
             aria-label={`Open actions for ${task.title}`}
             className="icon-button card-icon"
@@ -2606,17 +2548,23 @@ function TaskCard({
             ref={actionsTriggerRef}
             title="Task actions"
             type="button"
+            data-testid={`task-actions-${task.id}`}
           >
             <DotsThreeIcon aria-hidden="true" size={20} weight="bold" />
           </button>
         </div>
       </div>
+      {task.status === "in_progress" && visibleChecklistProgress !== undefined && visibleChecklistProgress.total > 0 && (
+        <div style={{ height: '4px', background: 'var(--border)', borderRadius: '2px', marginBottom: '6px', marginTop: '6px' }}>
+           <div style={{ width: `${(visibleChecklistProgress.completed / visibleChecklistProgress.total) * 100}%`, height: '100%', background: 'var(--focus)', borderRadius: '2px' }}></div>
+        </div>
+      )}
       {visibleChecklistProgress !== undefined && visibleChecklistProgress.total > 0 ? (
         <p className="task-checklist-progress">
-          <ListChecksIcon aria-hidden="true" size={17} />
-          {visibleChecklistProgress.completed} / {visibleChecklistProgress.total} complete
+          {visibleChecklistProgress.completed} of {visibleChecklistProgress.total} checked
         </p>
       ) : null}
+      
       {checklistState.status === "failed" ? (
         <p className="task-checklist-load-error">Checklist unavailable. Open task details to retry.</p>
       ) : null}
@@ -2751,6 +2699,20 @@ function TaskCard({
                 )}
               </div>
             )}
+            <div style={{marginTop: '24px'}}>
+              <EntityDialog
+                dialogTitle="Rename task"
+                initialValue={task.title}
+                inputId={`rename-task-${task.id}`}
+                label="Task title"
+                onSubmit={(title) => onRenameTask(task, title)}
+                placeholder="Task title"
+                submitLabel="Save changes"
+                triggerClassName="button-secondary"
+                triggerIcon={<PencilSimpleIcon aria-hidden="true" size={16} style={{marginRight: '8px'}} />}
+                triggerLabel={`Rename task ${task.title}`}
+              />
+            </div>
           </div>
         </dialog>
       ) : null}
