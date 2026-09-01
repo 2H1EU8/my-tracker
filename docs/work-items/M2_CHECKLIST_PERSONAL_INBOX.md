@@ -21,6 +21,11 @@ Real unpacked-Chrome QA remains pending, so this work item is not yet accepted.
 - QA must execute the production build from `.output/chrome-mv3` against the
   scenarios in `docs/qa/M2_TEST_PLAN.md`, including close/reopen persistence,
   keyboard flows, IndexedDB upgrade, error recovery, and offline/network checks.
+- On 2026-09-01, the repository gained an isolated Playwright production-
+  extension regression runner. Its tagged M2 journey now covers note/checklist
+  state, checklist/Kanban independence, and New Tab reopen persistence. The
+  remaining real Chrome restart, Offline, identified-artifact upgrade, and
+  visual/manual evidence stay required by the test plan.
 
 ## User outcome
 

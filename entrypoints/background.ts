@@ -1,5 +1,5 @@
-// @ts-expect-error auto-import works
 import { browser } from "wxt/browser";
+import { defineBackground } from "wxt/utils/define-background";
 import { TrackerService } from "../src/application/tracker-service";
 import { IndexedDbTrackerDatabase } from "../src/infrastructure/db/indexeddb-tracker-database";
 import { BrowserAlarmScheduler } from "../src/infrastructure/browser/alarms";
@@ -20,10 +20,16 @@ export default defineBackground(() => {
     try {
       if (alarm.name.startsWith("my-tracker:reminder:")) {
         const id = alarm.name.split(":")[2];
+        if (id === undefined) {
+          return;
+        }
         const reminder = await service.fireReminder(id);
-        await notifications.notifyReminder(id, reminder.title, reminder.details || "" || "");
+        await notifications.notifyReminder(id, reminder.title, reminder.details ?? "");
       } else if (alarm.name.startsWith("my-tracker:task-deadline:")) {
         const id = alarm.name.split(":")[2];
+        if (id === undefined) {
+          return;
+        }
         const workspace = await service.getWorkspace();
         // find task
         let taskTitle = "Task";

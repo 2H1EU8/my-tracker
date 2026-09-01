@@ -5,6 +5,7 @@ import type {
   ChecklistProgressByTask,
   Goal,
   InboxSnapshot,
+  InboxItem,
   Note,
   NoteLinkTarget,
   Phase,
@@ -116,7 +117,7 @@ export class TrackerService {
       throw new DomainError("invalid_backup", "Invalid backup format: " + JSON.stringify(validateBackup.errors));
     }
 
-    const backupData = backup as TrackerBackup;
+    const backupData = backup as unknown as TrackerBackup;
 
     await this.database.transaction(
       ["goals", "phases", "tasks", "checklistItems", "notes", "reminders"],
@@ -215,7 +216,7 @@ export class TrackerService {
         repositories.notes.list(),
         repositories.reminders.list(),
       ]);
-      const items: any[] = [
+      const items: InboxItem[] = [
         ...notes.map((note) => ({ kind: "note" as const, note })),
         ...reminders.map((reminder) => ({ kind: "reminder" as const, reminder })),
       ];

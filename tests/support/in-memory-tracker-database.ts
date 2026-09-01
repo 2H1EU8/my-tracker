@@ -1,38 +1,9 @@
-class InMemoryReminderRepository implements ReminderRepository {
-  constructor(private readonly records: Map<string, Reminder>) {}
-
-  async get(id: string): Promise<Reminder | undefined> {
-    const reminder = this.records.get(id);
-    return reminder === undefined ? undefined : { ...reminder };
-  }
-
-  async list(): Promise<Reminder[]> {
-    return Array.from(this.records.values()).sort((a, b) => a.dueAt.localeCompare(b.dueAt));
-  }
-
-  async put(reminder: Reminder): Promise<void> {
-    this.records.set(reminder.id, { ...reminder });
-  }
-
-  async putMany(reminders: readonly Reminder[]): Promise<void> {
-    for (const r of reminders) {
-      await this.put(r);
-    }
-  }
-
-  async delete(id: string): Promise<void> {
-    this.records.delete(id);
-  }
-
-  async clear(): Promise<void> {
-    this.records.clear();
-  }
-}
 import type {
   ChecklistItemRepository,
   GoalRepository,
   NoteRepository,
   PhaseRepository,
+  ReminderRepository,
   StoreName,
   TaskRepository,
   TrackerDatabase,
@@ -44,6 +15,7 @@ import type {
   Goal,
   Note,
   Phase,
+  Reminder,
   Task,
 } from "../../src/domain/model";
 import { sortByPosition } from "../../src/domain/rules";
@@ -85,6 +57,39 @@ function copyRecords(records: Records): Records {
       [...records.reminders].map(([id, reminder]) => [id, copyEntity(reminder)]),
     ),
   };
+}
+
+class InMemoryReminderRepository implements ReminderRepository {
+  constructor(private readonly records: Map<string, Reminder>) {}
+
+  async get(id: string): Promise<Reminder | undefined> {
+    const reminder = this.records.get(id);
+    return reminder === undefined ? undefined : copyEntity(reminder);
+  }
+
+  async list(): Promise<Reminder[]> {
+    return [...this.records.values()]
+      .map(copyEntity)
+      .sort((left, right) => left.dueAt.localeCompare(right.dueAt));
+  }
+
+  async put(reminder: Reminder): Promise<void> {
+    this.records.set(reminder.id, copyEntity(reminder));
+  }
+
+  async putMany(reminders: readonly Reminder[]): Promise<void> {
+    for (const reminder of reminders) {
+      await this.put(reminder);
+    }
+  }
+
+  async delete(id: string): Promise<void> {
+    this.records.delete(id);
+  }
+
+  async clear(): Promise<void> {
+    this.records.clear();
+  }
 }
 
 class InMemoryGoalRepository implements GoalRepository {

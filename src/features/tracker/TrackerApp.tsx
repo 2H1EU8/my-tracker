@@ -33,6 +33,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { browser } from "wxt/browser";
 import type { ReorderPlacement, TrackerService } from "../../application/tracker-service";
 import { DomainError } from "../../domain/errors";
 import {
@@ -64,7 +65,7 @@ interface RetryOperation {
   action: () => Promise<unknown>;
   successMessage: string | ((result: unknown) => string);
   getFocusSelector: (() => string | undefined) | undefined;
-  refresh: () => Promise<unknown>;
+  refresh: () => Promise<void>;
 }
 
 type LinkDraft =
@@ -723,7 +724,6 @@ function ImportPlanDialog({ onImport }: ImportPlanDialogProps) {
                   onChange={handleFileChange}
                   ref={fileInputRef}
                   type="file"
-  
                 />
 
                 {fileContent && !error && (
@@ -975,7 +975,7 @@ export function TrackerApp({ service }: TrackerAppProps) {
   
   const onExportBackup = async () => {
     try {
-      const backup = await service.exportBackup(chrome.runtime.getManifest().version);
+      const backup = await service.exportBackup(browser.runtime.getManifest().version);
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -1980,6 +1980,7 @@ function NoteEditorDialog({
                 <XIcon aria-hidden="true" size={18} weight="bold" />
               </button>
             </div>
+            <div className="dialog-body">
             <label htmlFor={`edit-note-${note.id}-body`}>Note body</label>
             <textarea
               aria-describedby={error === undefined ? undefined : errorId}
@@ -2812,6 +2813,7 @@ function TaskCard({
                 )}
               </div>
             )}
+          </div>
           </div>
         </dialog>
       ) : null}

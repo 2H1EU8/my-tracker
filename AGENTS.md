@@ -81,6 +81,24 @@ Before completion:
 4. Review the final diff for unrelated changes.
 5. Report checks run, failures, assumptions, and remaining risks.
 
+### Token-efficient QA execution
+
+- Follow `docs/qa/QA_AUTOMATION.md` for the command ladder, Playwright tags,
+  evidence retention, and manual-browser boundary.
+- Run deterministic checks before browser checks. Start with the narrowest
+  affected unit/integration suite, then the matching `@mX` Playwright journey.
+- Use `pnpm qa:fast` for the default code gate, `pnpm test:e2e:smoke` for the
+  production extension smoke gate, and `pnpm qa:release` only at a milestone or
+  release boundary.
+- Do not use Playwright MCP or Computer Use for a regression already covered by
+  the repository test runner. Use interactive browser tools to investigate one
+  failing scenario or to collect specifically required manual evidence.
+- On a passing run, report only command, count, duration, and build identity.
+  On failure, report the first failing scenario and artifact paths; do not paste
+  full traces, screenshots, DOM trees, or successful logs into chat.
+- Browser automation always uses a Playwright-managed disposable profile. It
+  must never attach to or inspect the owner's daily Chrome profile.
+
 After done any task or session:
 - Clean up your temp file, scratch scripts,.. you make while implementation the task.
 - Create a log-xxx.md in docs/agents/logs follow format:

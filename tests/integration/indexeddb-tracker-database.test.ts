@@ -10,6 +10,10 @@ import type {
 import type { Goal, Phase, Task } from "../../src/domain/model";
 import { FailNextWriteDatabase } from "../../src/infrastructure/db/fail-next-write-database";
 import { IndexedDbTrackerDatabase } from "../../src/infrastructure/db/indexeddb-tracker-database";
+import {
+  noopAlarmScheduler,
+  noopNotificationService,
+} from "../support/tracker-service-fixture";
 
 let databaseSequence = 0;
 
@@ -94,6 +98,8 @@ function createFixture(databaseName?: string) {
   const service = new TrackerService(database, {
     createId: () => `id-${++id}`,
     clock: () => new Date(Date.UTC(2026, 7, 28, 11, 0, tick++)).toISOString(),
+    alarms: noopAlarmScheduler,
+    notifications: noopNotificationService,
   });
 
   return { database, service };
@@ -313,7 +319,9 @@ describe("IndexedDbTrackerDatabase", () => {
     expect((await reopened.service.getWorkspace()).goals[0]?.phases[0]?.tasks[0]).toEqual(
       task,
     );
-    expect((await reopened.service.getInbox()).items[0]?.note).toEqual(note);
+    expect(
+      (await reopened.service.getInbox()).items.find((item) => item.kind === "note")?.note,
+    ).toEqual(note);
     expect((await reopened.service.getTaskChecklist(task.id)).checklistItems[0]).toEqual(
       checklistItem,
     );
@@ -422,6 +430,8 @@ describe("IndexedDbTrackerDatabase", () => {
     const service = new TrackerService(failingDatabase, {
       createId: () => "goal-retry",
       clock: () => "2026-08-28T12:00:00.000Z",
+      alarms: noopAlarmScheduler,
+      notifications: noopNotificationService,
     });
 
     await expect(service.createGoal("Retry me")).rejects.toThrow("Simulated save failure");
@@ -447,6 +457,8 @@ describe("IndexedDbTrackerDatabase", () => {
       new TrackerService(new FailNextWriteDatabase(fixture.database), {
         createId: () => `retry-id-${++serviceSequence}`,
         clock: () => `2026-08-28T16:00:0${serviceSequence}.000Z`,
+        alarms: noopAlarmScheduler,
+        notifications: noopNotificationService,
       });
 
     const createService = createFailingService();
@@ -458,7 +470,7 @@ describe("IndexedDbTrackerDatabase", () => {
     const createdNote = await createService.createNote("Created after retry");
     expect(
       (await fixture.service.getInbox()).items.filter(
-        ({ note }) => note.id === createdNote.id,
+        (item) => item.kind === "note" && item.note.id === createdNote.id,
       ),
     ).toHaveLength(1);
 
@@ -476,9 +488,9 @@ describe("IndexedDbTrackerDatabase", () => {
       goalId: goal.id,
     });
     expect(
-      (await fixture.service.getInbox()).items.find(
-        ({ note }) => note.id === existingNote.id,
-      )?.note,
+      (await fixture.service.getInbox()).items
+        .filter((item) => item.kind === "note")
+        .find(({ note }) => note.id === existingNote.id)?.note,
     ).toMatchObject({ body: "Edited after retry", linkedGoalId: goal.id });
 
     const checklistCreateService = createFailingService();
@@ -540,11 +552,13 @@ describe("IndexedDbTrackerDatabase", () => {
             phases: repositories.phases,
             checklistItems: repositories.checklistItems,
             notes: repositories.notes,
+            reminders: repositories.reminders,
             tasks: {
               get: (id) => repositories.tasks.get(id),
               list: () => repositories.tasks.list(),
               listByPhase: (phaseId) => repositories.tasks.listByPhase(phaseId),
               put: (task) => repositories.tasks.put(task),
+              clear: () => repositories.tasks.clear(),
               putMany: async (tasks) => {
                 const firstWrite = tasks[0];
                 if (firstWrite !== undefined) {
@@ -560,6 +574,8 @@ describe("IndexedDbTrackerDatabase", () => {
     const failingService = new TrackerService(failAfterOneTaskWrite, {
       createId: () => "unused-id",
       clock: () => "2026-08-28T13:00:00.000Z",
+      alarms: noopAlarmScheduler,
+      notifications: noopNotificationService,
     });
 
     await expect(failingService.moveTaskToStatus(first.id, "done")).rejects.toThrow(
@@ -594,6 +610,7 @@ describe("IndexedDbTrackerDatabase", () => {
               list: () => repositories.notes.list(),
               put: (note) => repositories.notes.put(note),
               delete: (id) => repositories.notes.delete(id),
+              clear: () => repositories.notes.clear(),
               putMany: async (notes) => {
                 const firstWrite = notes[0];
                 if (firstWrite !== undefined) {
@@ -609,6 +626,8 @@ describe("IndexedDbTrackerDatabase", () => {
     const failingService = new TrackerService(failAfterOneNoteWrite, {
       createId: () => "unused-id",
       clock: () => "2026-08-28T14:00:00.000Z",
+      alarms: noopAlarmScheduler,
+      notifications: noopNotificationService,
     });
 
     await expect(failingService.reorderNote(third.id, first.id, "before")).rejects.toThrow(
@@ -643,6 +662,7 @@ describe("IndexedDbTrackerDatabase", () => {
               list: () => repositories.notes.list(),
               put: (note) => repositories.notes.put(note),
               delete: (id) => repositories.notes.delete(id),
+              clear: () => repositories.notes.clear(),
               putMany: async () => {
                 throw new Error("Simulated failure after note deletion.");
               },
@@ -654,6 +674,8 @@ describe("IndexedDbTrackerDatabase", () => {
     const failingService = new TrackerService(failAfterDelete, {
       createId: () => "unused-id",
       clock: () => "2026-08-28T15:00:00.000Z",
+      alarms: noopAlarmScheduler,
+      notifications: noopNotificationService,
     });
 
     await expect(failingService.deleteNote(first.id)).rejects.toThrow(

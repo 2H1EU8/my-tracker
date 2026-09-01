@@ -43,6 +43,7 @@ Backup exporter/restore validator <---------- repository ports
 | UI | React + TypeScript | Matches the owner's experience and supports typed feature modules. |
 | Styling | Plain CSS custom properties for M1 | Keeps the functional shell small and implements the approved semantic tokens without another dependency. Revisit Tailwind only if later visual-system work demonstrates enough value. |
 | Domain storage | Native IndexedDB behind repository interfaces for M1 | Handles normalized related entities, transactions, indexes, and larger plans better than one JSON storage key while validating the platform API before considering a wrapper. |
+| Browser regression | Playwright Test with bundled Chromium | Loads the production unpacked output in a disposable persistent profile, supports repeatable New Tab journeys, and retains diagnostics only on failure. |
 | Settings | IndexedDB through the same repository boundary | Keep one domain source of truth and avoid an unnecessary permission. |
 | Reminder scheduling | `chrome.alarms` | Durable event mechanism compatible with an ephemeral MV3 service worker. |
 | System notifications | `chrome.notifications` | Extension-native system tray notification. |

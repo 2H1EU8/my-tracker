@@ -74,10 +74,24 @@ Prerequisites: Node.js and pnpm.
 
 ```sh
 pnpm install
+pnpm exec playwright install chromium
 pnpm typecheck
 pnpm test
 pnpm build
 ```
+
+Token-efficient QA commands:
+
+```sh
+pnpm qa:fast          # type-check + deterministic Vitest suite
+pnpm test:e2e:smoke  # build + isolated Chromium M1/M2 smoke journeys
+pnpm qa:release       # deterministic gates + build + full Playwright suite
+```
+
+The Playwright runner loads `.output/chrome-mv3` in a disposable profile and
+keeps traces, screenshots, accessibility snapshots, and browser errors only for
+failed tests. See [`docs/qa/QA_AUTOMATION.md`](docs/qa/QA_AUTOMATION.md) before
+delegating a milestone verification to a QA agent.
 
 Load `.output/chrome-mv3` from `chrome://extensions` with Developer mode enabled
 and **Load unpacked**. Detailed M1 verification and recovery steps are in

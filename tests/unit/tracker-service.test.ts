@@ -231,7 +231,9 @@ describe("TrackerService", () => {
     await service.deleteNote(linkedToTask.id);
     expect(await service.getWorkspace()).toEqual(workspaceBeforeEdit);
     expect(
-      (await service.getInbox()).items.some(({ note }) => note.id === linkedToTask.id),
+      (await service.getInbox()).items.some(
+        (item) => item.kind === "note" && item.note.id === linkedToTask.id,
+      ),
     ).toBe(false);
   });
 
@@ -263,7 +265,9 @@ describe("TrackerService", () => {
 
     await service.reorderNote(third.id, first.id, "before");
     expect(
-      (await service.getInbox()).items.map(({ note }) => [note.body, note.position]),
+      (await service.getInbox()).items
+        .filter((item) => item.kind === "note")
+        .map(({ note }) => [note.body, note.position]),
     ).toEqual([
       ["Third", 0],
       ["First", 1],
@@ -272,7 +276,9 @@ describe("TrackerService", () => {
 
     await service.deleteNote(first.id);
     expect(
-      (await service.getInbox()).items.map(({ note }) => [note.body, note.position]),
+      (await service.getInbox()).items
+        .filter((item) => item.kind === "note")
+        .map(({ note }) => [note.body, note.position]),
     ).toEqual([
       ["Third", 0],
       ["Second", 1],
@@ -350,7 +356,9 @@ describe("TrackerService", () => {
     expect(await service.getChecklistProgress()).toEqual({
       [task.id]: { completed: 2, total: 2 },
     });
-    expect((await service.getInbox()).items[0]?.note).toEqual(linkedNote);
+    expect(
+      (await service.getInbox()).items.find((item) => item.kind === "note")?.note,
+    ).toEqual(linkedNote);
   });
 
   it("rejects checklist parent mismatches and missing parents without writes", async () => {
@@ -402,7 +410,7 @@ describe("TrackerService", () => {
     // Verify erased is gone
     const workspace = await service.getWorkspace();
     expect(workspace.goals.length).toBe(1);
-    expect(workspace.goals[0].goal.title).toBe("Backup Goal");
+    expect(workspace.goals[0]?.goal.title).toBe("Backup Goal");
   });
 
 });

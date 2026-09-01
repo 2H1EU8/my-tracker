@@ -10,6 +10,14 @@
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
+    "test:e2e": "pnpm build && playwright test",
+    "test:e2e:smoke": "pnpm build && playwright test --grep @smoke",
+    "test:e2e:m1": "pnpm build && playwright test --grep @m1",
+    "test:e2e:m2": "pnpm build && playwright test --grep @m2",
+    "test:e2e:headed": "pnpm build && PW_HEADED=1 playwright test --grep @smoke",
+    "qa:fast": "pnpm typecheck && vitest run --reporter=dot",
+    "qa:smoke": "pnpm qa:fast && pnpm test:e2e:smoke",
+    "qa:release": "pnpm typecheck && vitest run --reporter=dot && pnpm build && playwright test",
     "postinstall": "wxt prepare"
   },
   "dependencies": {
@@ -20,6 +28,8 @@
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^26.4.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "@wxt-dev/module-react": "^1.2.2",

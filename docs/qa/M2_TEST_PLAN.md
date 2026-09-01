@@ -87,6 +87,21 @@ ID `apfbmmdkiedhpelmnepegjcaljgnnhip` and only synthetic M2 QA data.
   production artifact with safe same-install reload steps. A second controllable
   profile and protected extension reload are also unavailable in this session.
 
+## Repository Playwright runner update — 2026-09-01
+
+The repository now has a Playwright Test harness under `tests/e2e/`, tagged M1,
+M2, smoke, and local-boundary journeys, plus the command/evidence policy in
+`docs/qa/QA_AUTOMATION.md`. It builds and loads `.output/chrome-mv3` in a fresh
+Playwright-managed persistent Chromium profile and discards diagnostics on pass.
+
+The combined smoke run passed three production journeys: New Tab ownership and
+local request boundary; M1 Goal -> Phase -> Task move and reopen persistence;
+and M2 note/checklist state with checklist/Kanban independence and reopen
+persistence. These repeatable checks strengthen future regression evidence but
+do not retrospectively convert the required full Chrome restart, DevTools
+Offline, identified M1-artifact upgrade, permanent-delete recovery, or
+independent visual-focus evidence to Pass.
+
 ## Objective
 
 Determine whether the owner can capture, link, edit, reorder, and explicitly
@@ -164,13 +179,14 @@ identifiers and exact reload steps; QA must not guess from an unlabelled build.
 | `U` | Unit automation | Pure validation, link union, ordering, checklist independence, and use-case rules |
 | `I` | IndexedDB integration automation | Real adapter behavior with disposable `fake-indexeddb`, v1 fixtures, reconnect, transactions, and rollback |
 | `B` | Build/static inspection | Type-check, complete suite, production package, manifest, bundled-asset, and local-only boundaries |
+| `P` | Repository Playwright automation | Repeatable production-extension journeys in an isolated persistent Chromium profile, with failure-only artifacts |
 | `C` | Real unpacked Chrome | User-visible interaction, real IndexedDB, focus, responsive behavior, reopen/restart, and offline evidence |
 | `D` | Documentation/handoff | Reproducible build identity, profile setup, migration setup, and fault-injection instructions |
 
 Current repository automation is Vitest in a Node environment with unit and
-`fake-indexeddb` integration suites. No browser end-to-end or component-DOM
-script is currently configured. QA reports that fact and does not invent a lint,
-component, or E2E command.
+`fake-indexeddb` integration suites plus Playwright production-extension E2E.
+There is still no configured lint or component-DOM command, so QA does not
+invent either gate.
 
 ## Required Dev handoff before execution
 

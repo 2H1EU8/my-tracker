@@ -10,6 +10,8 @@ build/
 
 # Test output
 coverage/
+playwright-report/
+test-results/
 
 # Local secrets
 .env
