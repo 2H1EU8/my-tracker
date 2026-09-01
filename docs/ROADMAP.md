@@ -198,6 +198,26 @@ Exit gate:
 - Markdown syntax renders correctly as headings, checklists, or blockquotes in the view modal.
 - Cross-Site Scripting (XSS) prevention is validated.
 
+## M8 — Focus Timer
+
+Outcome:
+
+Create a focus session for a task, track time visually, receive a notification, and log time spent.
+
+In scope:
+
+- Configurable durations (presets, custom, or unlimited).
+- A persistent mini-timer visible across the app.
+- System notifications on completion using `chrome.alarms`.
+- Persistent logging of completed sessions and total time per task.
+- Ensure only one active session at a time.
+
+Exit gate:
+
+- Active timer remains visible when navigating away from the task.
+- Alarm triggers correctly even if the new tab is closed.
+- Task detail shows a log of past sessions and total time.
+
 ## Post-MVP candidates
 
 These require fresh discovery and are not commitments:
