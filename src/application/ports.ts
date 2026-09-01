@@ -41,6 +41,7 @@ export interface ChecklistItemRepository {
   listByTask(taskId: string): Promise<ChecklistItem[]>;
   put(checklistItem: ChecklistItem): Promise<void>;
   putMany(checklistItems: readonly ChecklistItem[]): Promise<void>;
+  delete(id: string): Promise<void>;
   clear(): Promise<void>;
 }
 

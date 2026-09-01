@@ -184,6 +184,10 @@ class InMemoryTaskRepository implements TaskRepository {
 
 class InMemoryChecklistItemRepository implements ChecklistItemRepository {
 
+  async delete(id: string): Promise<void> {
+    this.records.delete(id);
+  }
+
   async clear(): Promise<void> {
     this.records.clear();
   }

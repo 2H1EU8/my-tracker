@@ -16,6 +16,8 @@ import {
   TrashSimpleIcon,
   XIcon,
   GearIcon,
+  PencilIcon,
+  TrashIcon
 } from "@phosphor-icons/react";
 import {
   type Dispatch,
@@ -85,6 +87,7 @@ interface EntityDialogProps {
   triggerClassName?: string;
   triggerIcon: ReactNode;
   triggerLabel: string;
+  multiline?: boolean;
 }
 
 function getErrorMessage(error: unknown): string {
@@ -744,6 +747,7 @@ function EntityDialog({
   triggerClassName,
   triggerIcon,
   triggerLabel,
+  multiline = false,
 }: EntityDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [draft, setDraft] = useState(initialValue);
@@ -1321,7 +1325,7 @@ export function TrackerApp({ service }: TrackerAppProps) {
                 "local",
               );
             }}
-            onCreateTask={(title) => {
+            onCreateTask={(title, status = "todo") => {
               if (selectedPhase === undefined) {
                 return Promise.reject(new DomainError("not_found", "Select a phase first."));
               }
@@ -1332,11 +1336,12 @@ export function TrackerApp({ service }: TrackerAppProps) {
                     selectedGoal.goal.id,
                     selectedPhase.phase.id,
                     title,
+                    status
                   );
                   createdId = task.id;
                   return task;
                 },
-                "Task created in Todo.",
+                "Task created.",
                 () =>
                   createdId === ""
                     ? undefined
@@ -1348,6 +1353,23 @@ export function TrackerApp({ service }: TrackerAppProps) {
               performMutation(
                 () => service.createChecklistItem(taskId, title),
                 "Checklist item added.",
+                undefined,
+                "local",
+                refreshChecklistProgress,
+              )
+            }
+            onRenameChecklistItem={(taskId, checklistItemId, title) =>
+              performMutation(
+                () => service.renameChecklistItem(taskId, checklistItemId, title),
+                "Checklist item updated.",
+                undefined,
+                "local",
+              )
+            }
+            onDeleteChecklistItem={(taskId, checklistItemId) =>
+              performMutation(
+                () => service.deleteChecklistItem(taskId, checklistItemId),
+                "Checklist item deleted.",
                 undefined,
                 "local",
                 refreshChecklistProgress,
@@ -1478,12 +1500,7 @@ function HomeView({
 }: HomeViewProps) {
   return (
     <div className="home-layout">
-      <QuickNoteComposer
-        goals={goals}
-        isReady={inbox !== undefined && inboxError === undefined}
-        onCreate={onCreateNote}
-        workspaceFailed={goalsError !== undefined}
-      />
+
       <div className="home-columns">
         <InboxView
           goals={goals}
@@ -1500,7 +1517,19 @@ function HomeView({
           <h1 id="goals-title" className="sr-only">Goals</h1>
           <div className="goals-header-actions">
             <p className="goals-count-label">Goals &middot; {goals?.length ?? 0}</p>
-            <div style={{ display: "flex", gap: "8px" }}>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <EntityDialog
+                dialogTitle="New Note"
+                inputId="new-note-body"
+                label="Note content"
+                multiline={true}
+                onSubmit={(body) => onCreateNote(body, { kind: "none" })}
+                placeholder="Capture a note or reminder"
+                submitLabel="Create note"
+                triggerClassName="icon-button"
+                triggerIcon={<PlusIcon aria-hidden="true" size={18} />}
+                triggerLabel="New note"
+              />
               <BackupSettingsDialog onExport={onExportBackup} onRestore={onRestoreBackup} />
               <ImportPlanDialog onImport={onImportPlan} />
             </div>
@@ -1675,7 +1704,9 @@ function InboxView({
   return (
     <section aria-labelledby="inbox-title" className="inbox-column">
       <h2 id="inbox-title" className="sr-only">Inbox</h2>
-      <p className="inbox-count-label">Inbox &middot; {notes === undefined ? "—" : notes.length}</p>
+      <div className="inbox-header-actions">
+        <p className="inbox-count-label">Inbox &middot; {notes === undefined ? "—" : notes.length}</p>
+      </div>
       
       {loadError !== undefined ? (
         <div className="error-banner section-error">
@@ -2173,7 +2204,7 @@ interface GoalViewProps {
   onBack: () => void;
   onCreateChecklistItem: (taskId: string, title: string) => Promise<ChecklistItem>;
   onCreatePhase: (title: string) => Promise<unknown>;
-  onCreateTask: (title: string) => Promise<unknown>;
+  onCreateTask: (title: string, status?: import("../../domain/model").TaskStatus) => Promise<unknown>;
   onGetTaskChecklist: (taskId: string) => Promise<TaskChecklistSnapshot>;
   onMoveTask: (task: Task, status: TaskStatus, phaseId?: string) => Promise<unknown>;
   onRenameGoal: (title: string) => Promise<unknown>;
@@ -2192,6 +2223,8 @@ interface GoalViewProps {
   ) => Promise<ChecklistItem>;
   onRetryChecklistProgress: () => Promise<unknown>;
   selectedPhase: PhaseTree | undefined;
+  onRenameChecklistItem: (taskId: string, checklistItemId: string, title: string) => Promise<unknown>;
+  onDeleteChecklistItem: (taskId: string, checklistItemId: string) => Promise<unknown>;
 }
 
 function GoalView({
@@ -2210,6 +2243,8 @@ function GoalView({
   onReorderTask,
   onSelectPhase,
   onSetChecklistItemCompleted,
+  onRenameChecklistItem,
+  onDeleteChecklistItem,
   onRetryChecklistProgress,
   selectedPhase,
 }: GoalViewProps) {
@@ -2323,6 +2358,8 @@ function GoalView({
               onRenameTask={onRenameTask}
               onReorderTask={onReorderTask}
               onSetChecklistItemCompleted={onSetChecklistItemCompleted}
+              onRenameChecklistItem={onRenameChecklistItem}
+              onDeleteChecklistItem={onDeleteChecklistItem}
               phaseTree={selectedPhase}
             />
           )}
@@ -2336,7 +2373,7 @@ interface BoardProps {
   checklistProgress: ChecklistProgressByTask | undefined;
   phaseTree: PhaseTree;
   onCreateChecklistItem: (taskId: string, title: string) => Promise<ChecklistItem>;
-  onCreateTask: (title: string) => Promise<unknown>;
+  onCreateTask: (title: string, status?: import("../../domain/model").TaskStatus) => Promise<unknown>;
   onGetTaskChecklist: (taskId: string) => Promise<TaskChecklistSnapshot>;
   onMoveTask: (task: Task, status: TaskStatus, phaseId?: string) => Promise<unknown>;
   onRenamePhase: (title: string) => Promise<unknown>;
@@ -2351,6 +2388,8 @@ interface BoardProps {
     checklistItemId: string,
     isCompleted: boolean,
   ) => Promise<ChecklistItem>;
+  onRenameChecklistItem: (taskId: string, checklistItemId: string, title: string) => Promise<unknown>;
+  onDeleteChecklistItem: (taskId: string, checklistItemId: string) => Promise<unknown>;
 }
 
 function Board({
@@ -2363,6 +2402,8 @@ function Board({
   onRenameTask,
   onReorderTask,
   onSetChecklistItemCompleted,
+  onRenameChecklistItem,
+  onDeleteChecklistItem,
   phaseTree,
 }: BoardProps) {
   const [dragOverCol, setDragOverCol] = useState<TaskStatus | null>(null);
@@ -2385,18 +2426,7 @@ function Board({
         />
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
-        <EntityDialog
-          dialogTitle="Create task"
-          inputId="new-task-title"
-          label="Task title"
-          onSubmit={onCreateTask}
-          placeholder="Next useful step"
-          submitLabel="Create task"
-          triggerIcon={<PlusIcon aria-hidden="true" size={16} style={{marginRight: '6px'}} />}
-          triggerLabel="New task"
-        />
-      </div>
+
 
       {phaseTree.tasks.length === 0 ? (
         <p className="board-empty-message">No tasks in this phase yet.</p>
@@ -2427,8 +2457,24 @@ function Board({
                 }
               }}
             >
-              <header style={{ pointerEvents: dragOverCol === status ? 'none' : 'auto' }}>
+              <header 
+                className="kanban-column-header" 
+                style={{ pointerEvents: dragOverCol === status ? 'none' : 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
                 <h3>{STATUS_LABELS[status]} &middot; {tasks.length}</h3>
+                <div className="kanban-column-actions">
+                  <EntityDialog
+                    dialogTitle={`Create task in ${STATUS_LABELS[status]}`}
+                    inputId={`new-task-title-${status}`}
+                    label="Task title"
+                    onSubmit={(title) => onCreateTask(title, status)}
+                    placeholder="Next useful step"
+                    submitLabel="Create task"
+                    triggerClassName="icon-button column-add-btn"
+                    triggerIcon={<PlusIcon aria-hidden="true" size={16} />}
+                    triggerLabel=""
+                  />
+                </div>
               </header>
               {tasks.length > 0 ? (
                 <div className="task-list" style={{ pointerEvents: dragOverCol === status ? 'none' : 'auto' }}>
@@ -2443,6 +2489,8 @@ function Board({
                       onRenameTask={onRenameTask}
                       onReorderTask={onReorderTask}
                       onSetChecklistItemCompleted={onSetChecklistItemCompleted}
+                      onRenameChecklistItem={onRenameChecklistItem}
+                      onDeleteChecklistItem={onDeleteChecklistItem}
                       previousTask={tasks[index - 1]}
                       task={task}
                     />
@@ -2476,6 +2524,8 @@ interface TaskCardProps {
     checklistItemId: string,
     isCompleted: boolean,
   ) => Promise<ChecklistItem>;
+  onRenameChecklistItem: (taskId: string, checklistItemId: string, title: string) => Promise<unknown>;
+  onDeleteChecklistItem: (taskId: string, checklistItemId: string) => Promise<unknown>;
 }
 
 function TaskCard({
@@ -2487,6 +2537,8 @@ function TaskCard({
   onRenameTask,
   onReorderTask,
   onSetChecklistItemCompleted,
+  onRenameChecklistItem,
+  onDeleteChecklistItem,
   previousTask,
   task,
 }: TaskCardProps) {
@@ -2604,6 +2656,8 @@ function TaskCard({
           onCreateChecklistItem={onCreateChecklistItem}
           onRefreshChecklist={refreshChecklist}
           onSetChecklistItemCompleted={onSetChecklistItemCompleted}
+          onRenameChecklistItem={onRenameChecklistItem}
+          onDeleteChecklistItem={onDeleteChecklistItem}
           setChecklistState={setChecklistState}
           task={task}
           onRenameTask={onRenameTask}
@@ -2745,6 +2799,8 @@ interface TaskDetailsDialogProps {
   task: Task;
 
   onRenameTask: (task: Task, title: string) => Promise<unknown>;
+  onRenameChecklistItem: (taskId: string, checklistItemId: string, title: string) => Promise<unknown>;
+  onDeleteChecklistItem: (taskId: string, checklistItemId: string) => Promise<unknown>;
 }
 
 function TaskDetailsDialog({
@@ -2752,6 +2808,8 @@ function TaskDetailsDialog({
   onCreateChecklistItem,
   onRefreshChecklist,
   onSetChecklistItemCompleted,
+  onRenameChecklistItem,
+  onDeleteChecklistItem,
   setChecklistState,
   task,
   onRenameTask,
@@ -2967,44 +3025,23 @@ function TaskDetailsDialog({
             <div className="task-detail-content">
               <div className="checklist-heading">
                 <h3>Checklist</h3>
-                <p aria-live="polite">
-                  {completedCount} / {items.length} complete
-                </p>
-              </div>
-
-              <form
-                aria-busy={isOpening}
-                className="checklist-create-form"
-                onSubmit={createChecklistItem}
-                ref={formRef}
-              >
-                <label htmlFor={inputId}>Add checklist item</label>
-                <div className="checklist-create-row">
-                  <input
-                    aria-describedby={createError === undefined ? undefined : createErrorId}
-                    aria-invalid={createError === undefined ? undefined : true}
-                    id={inputId}
-                    onChange={(event) => setDraft(event.currentTarget.value)}
-                    placeholder="A small next step"
-                    readOnly={isOpening}
-                    ref={inputRef}
-                    value={draft}
-                  />
-                  <button className="button-primary" disabled={isOpening} type="submit">
-                    <PlusIcon aria-hidden="true" size={18} weight="bold" />
-                    {isOpening
-                      ? "Adding…"
-                      : createError === undefined
-                        ? "Add item"
-                        : "Retry"}
-                  </button>
-                </div>
-                {createError === undefined ? null : (
-                  <p className="field-error" id={createErrorId}>
-                    {createError}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <p aria-live="polite" style={{ margin: 0 }}>
+                    {completedCount} / {items.length} complete
                   </p>
-                )}
-              </form>
+                  <EntityDialog
+                    dialogTitle="New Checklist Item"
+                    inputId="new-checklist-item"
+                    label="Item title"
+                    onSubmit={(title) => onCreateChecklistItem(task.id, title).then(() => onRefreshChecklist())}
+                    placeholder="A small next step"
+                    submitLabel="Add item"
+                    triggerClassName="icon-button"
+                    triggerIcon={<PlusIcon aria-hidden="true" size={16} />}
+                    triggerLabel=""
+                  />
+                </div>
+              </div>
 
               {items.length === 0 ? (
                 <p className="checklist-empty">
@@ -3017,7 +3054,7 @@ function TaskDetailsDialog({
                     const error = toggleErrors[item.id];
                     return (
                       <div className="checklist-row" key={item.id}>
-                        <label>
+                        <label style={{ flex: 1 }}>
                           <input
                             checked={item.isCompleted}
                             disabled={isPending}
@@ -3032,6 +3069,28 @@ function TaskDetailsDialog({
                             <span className="checklist-state">Completed</span>
                           ) : null}
                         </label>
+                        <div style={{ display: 'flex', gap: '4px', opacity: 0.6 }}>
+                          <EntityDialog
+                            dialogTitle="Edit Checklist Item"
+                            initialValue={item.title}
+                            inputId={`edit-checklist-item-${item.id}`}
+                            label="Item title"
+                            onSubmit={(title) => onRenameChecklistItem(task.id, item.id, title).then(() => onRefreshChecklist())}
+                            placeholder="A small next step"
+                            submitLabel="Save"
+                            triggerClassName="icon-button"
+                            triggerIcon={<PencilIcon aria-hidden="true" size={14} />}
+                            triggerLabel=""
+                          />
+                          <button
+                            className="icon-button"
+                            onClick={() => onDeleteChecklistItem(task.id, item.id).then(() => onRefreshChecklist())}
+                            title="Delete item"
+                            type="button"
+                          >
+                            <TrashIcon aria-hidden="true" size={14} />
+                          </button>
+                        </div>
                         {isPending ? (
                           <p className="checklist-row-state" role="status">
                             Saving…

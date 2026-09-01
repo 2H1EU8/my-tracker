@@ -308,6 +308,10 @@ class IndexedDbChecklistItemRepository implements ChecklistItemRepository {
     await requestResult(this.store.put(checklistItem));
   }
 
+  async delete(id: string): Promise<void> {
+    await requestResult(this.store.delete(id));
+  }
+
   async putMany(checklistItems: readonly ChecklistItem[]): Promise<void> {
     await Promise.all(
       checklistItems.map((checklistItem) =>
