@@ -190,3 +190,4 @@ These require fresh discovery and are not commitments:
 - Cloud or peer sync with explicit conflict semantics.
 - External PM integrations.
 - Chrome Web Store packaging and policy review.
+- Filter inbox/quick notes by date.
