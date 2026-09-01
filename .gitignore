@@ -30,3 +30,9 @@ Thumbs.db
 
 
 .agents/skills
+
+.playwright-mcp/
+
+docs/design/
+
+docs/agents/logs

@@ -81,6 +81,21 @@ Before completion:
 4. Review the final diff for unrelated changes.
 5. Report checks run, failures, assumptions, and remaining risks.
 
+After done any task or session:
+- Create a log-xxx.md in docs/agents/logs follow format:
+```markdown
+- Task: <Brief task description>
+### Issues: <Brief issues description>
+
+### The solution: <Listing the solutions the agent choose to solve issues>
+
+### The changed: <Brief what you changed and the file you changed>
+
+### Blocker: <Brief blocker>
+```
+
+
+
 ## Definition of ready
 
 A work item is ready for implementation only when it has:

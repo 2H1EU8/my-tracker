@@ -2,8 +2,8 @@
 
 ## Status
 
-`Q01–Q015 passed — Q016–Q22 pending real Chrome execution.` Design and Dev have
-completed the implementation handoff in
+`Q01–Q16 passed. Q17–Q22 are partially executed and still have required blocked
+or approval-gated steps.` Design and Dev have completed the implementation handoff in
 [`docs/work-items/M2_CHECKLIST_PERSONAL_INBOX.md`](../work-items/M2_CHECKLIST_PERSONAL_INBOX.md).
 On 2026-09-01, independent QA reran and strengthened the automated evidence:
 `pnpm typecheck`, 18 unit tests, 11 integration tests, the full 29-test suite,
@@ -36,10 +36,56 @@ evidence from the exact production build in `.output/chrome-mv3`.
   control policy blocks `chrome-extension://` pages. The owner confirmed honest
   loading, disabled early capture, visible recoverable shell, successful Retry,
   correct Quick note → Inbox → Goals order, and no M3 affordance.
-- Q07–Q22: Pending user-executed Chrome evidence. Browser control is connected
-  but its security policy blocks interacting with `chrome-extension://` pages;
-  do not convert remaining scenarios to Pass from static or `fake-indexeddb`
-  evidence.
+- Q07–Q15: Pass from the owner's scoped disposable-Chrome execution on
+  2026-09-01.
+- Q16: Pass from independent Playwright MCP execution against the installed
+  production artifact. Native checkbox state and written progress moved through
+  `0 / 3`, `1 / 3`, `0 / 3`, and `3 / 3`; the task remained Todo until an
+  explicit task action moved it to Done and then In Progress; all item titles,
+  order, and checked state remained unchanged.
+- Q17–Q22: Partial evidence is recorded below. Browser security policy still
+  blocks direct control of `chrome-extension://` pages in the owner's Chrome
+  group, so unavailable restart, Offline-throttling, and real-profile upgrade
+  steps are not converted to Pass from static or `fake-indexeddb` evidence.
+
+## Playwright MCP execution update — 2026-09-01
+
+Profile: Playwright-managed disposable Chrome profile with installed extension
+ID `apfbmmdkiedhpelmnepegjcaljgnnhip` and only synthetic M2 QA data.
+
+- Q16 — Pass. Three checklist items exercised check, uncheck, all-complete,
+  Todo -> Done -> In Progress, written card progress, native checkbox state,
+  and checklist/Kanban independence.
+- Q17 — Blocked. Closing the only extension page, opening a new page in the same
+  profile, and comparing four notes plus two task checklists passed. Note body,
+  Goal/Task link text, non-default order, count, task status, item title/order,
+  mixed checked state, and progress all persisted. The MCP close operation only
+  closed the page; it did not prove a full Chrome-process restart.
+- Q18 — Blocked. One-shot failure plus unchanged second-tab read plus exactly-once
+  Retry passed for note create, body-and-link edit, note reorder, checklist
+  create, checklist check, and checklist uncheck. Each failure kept the prior
+  card/order/checkbox/progress state and exposed `Changes are not saved` plus a
+  contextual Retry. Confirmed note-delete failure/retry is still approval-gated.
+- Q19 — Blocked. The production UI reorder failure stayed visibly and durably
+  unchanged, then Retry committed one adjacent move. Q05 already supplies the
+  post-write rollback companion. The equivalent confirmed-delete UI record is
+  still pending with Q18.
+- Q20 — Blocked. Keyboard-only evidence passed for skip link -> Quick note,
+  create focus, edit, link/unlink, reorder, delete-cancel, unsaved-draft
+  keep/discard confirmation, dialog focus wrap, task-detail open/close focus
+  return, checklist create focus, and Space check/uncheck. The live region made
+  one polite `Checklist item reopened.` announcement. Permanent delete and an
+  independent visual focus-ring recording remain pending.
+- Q21 — Blocked. Generated manifest inspection passed with empty `permissions`
+  and `host_permissions`; Playwright recorded only local `chrome-extension://`
+  HTML, JavaScript, and CSS requests and zero console errors. Neither Playwright
+  MCP nor the permitted Chrome-control surface could set DevTools Network to
+  Offline on the protected extension page, so the actual Offline journey is
+  still required.
+- Q22 — Blocked. The repository contains the M1 source revision `72d0ef2` and
+  the current M2 output only; it does not contain an identified, hashed M1
+  production artifact with safe same-install reload steps. A second controllable
+  profile and protected extension reload are also unavailable in this session.
 
 ## Objective
 
@@ -717,29 +763,29 @@ alone.
 | AC | Result | Scenario evidence | Defect/risk |
 | --- | --- | --- | --- |
 | 1 | Pass | Q06 | Owner observed delayed loading and recoverable one-shot load failure |
-| 2 | Blocked | Q02, Q07 | Automated evidence passes; Q07 unavailable |
-| 3 | Blocked | Q02, Q08 | Automated evidence passes; Q08 unavailable |
-| 4 | Blocked | Q02, Q07 | Automated evidence passes; Q07 unavailable |
-| 5 | Blocked | Q02, Q05, Q09 | Automated evidence passes; Q09 unavailable |
-| 6 | Blocked | Q02, Q06, Q10 | Automated evidence passes; Chrome evidence unavailable |
-| 7 | Blocked | Q02, Q08, Q10 | Automated evidence passes; Chrome evidence unavailable |
-| 8 | Blocked | Q02, Q05, Q11 | Automated evidence passes; Q11 unavailable |
-| 9 | Blocked | Q02, Q12 | Automated evidence passes; Q12 unavailable |
-| 10 | Blocked | Q13, Q20 | Real Chrome connection unavailable |
-| 11 | Blocked | Q14 | Real Chrome connection unavailable |
-| 12 | Blocked | Q02, Q03, Q13 | Automated evidence passes; Q13 unavailable |
-| 13 | Blocked | Q02, Q15 | Automated evidence passes; Q15 unavailable |
-| 14 | Blocked | Q02, Q03, Q16, Q17 | Automated evidence passes; Chrome evidence unavailable |
-| 15 | Blocked | Q02, Q16 | Automated evidence passes; Q16 unavailable |
+| 2 | Pass | Q02, Q07 | Automated and owner Chrome evidence pass |
+| 3 | Pass | Q02, Q08 | Boundaries, retained draft, and reopen evidence pass |
+| 4 | Pass | Q02, Q07 | Unlinked capture without hierarchy passes |
+| 5 | Pass | Q02, Q05, Q09 | Link identity/edit/remove evidence passes |
+| 6 | Pass | Q02, Q06, Q10 | Count, empty/populated state, and no fake M3 controls pass |
+| 7 | Pass | Q02, Q08, Q10 | Plain text, semantic context/time, and wrapping pass |
+| 8 | Pass | Q02, Q05, Q11 | Pointer/keyboard edit/reorder/delete persistence passes |
+| 9 | Pass | Q02, Q12 | Related task/checklist changes retain linked notes |
+| 10 | Pass | Q13, Q20 | Task detail opens and restores exact task-title focus |
+| 11 | Pass | Q14 | Owner Chrome responsive and zoom evidence passes |
+| 12 | Pass | Q02, Q03, Q13 | Empty/populated detail and created-item focus pass |
+| 13 | Pass | Q02, Q15 | Checklist boundaries and plain-text rendering pass |
+| 14 | Blocked | Q02, Q03, Q16, Q17 | Toggle/reopen passes; full browser restart remains unavailable |
+| 15 | Pass | Q02, Q16 | Bidirectional checklist/task independence passes |
 | 16 | Pass | Q03 | IndexedDB v2 stores/indexes and reconnect snapshot verified |
 | 17 | Blocked | Q04, Q22 | Automated migration passes; real upgrade unavailable |
-| 18 | Blocked | Q03, Q17 | Automated reconnect passes; Chrome reopen unavailable |
-| 19 | Blocked | Q05, Q18, Q19 | Automated rollback passes; Chrome recovery unavailable |
+| 18 | Pass | Q03, Q17 | Closed/reopened New Tab preserved complete note/checklist state |
+| 19 | Blocked | Q05, Q18, Q19 | Five mutation families pass; confirmed-delete recovery pending |
 | 20 | Pass | Q05 | Post-write note reorder/delete rollback verified after reconnect |
-| 21 | Blocked | Q07, Q09, Q11, Q13, Q20 | Real Chrome connection unavailable |
-| 22 | Blocked | Q16, Q18, Q20 | Real Chrome connection unavailable |
-| 23 | Blocked | Q01, Q21 | Static boundary passes; Offline Chrome evidence unavailable |
-| 24 | Blocked | Q01, Q06-Q21 | Production artifact passes; unpacked journey unavailable |
+| 21 | Blocked | Q07, Q09, Q11, Q13, Q20 | Keyboard path passes except permanent delete; visual focus recording pending |
+| 22 | Blocked | Q16, Q18, Q20 | Written/native semantics pass; delete-failure and final announcement evidence pending |
+| 23 | Blocked | Q01, Q21 | Permissions/local requests pass; Offline Chrome evidence unavailable |
+| 24 | Blocked | Q01, Q06-Q21 | Production journey mostly passes; restart, delete-failure, Offline, and upgrade evidence remain |
 
 ## Release recommendation rule
 
