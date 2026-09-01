@@ -82,6 +82,7 @@ Before completion:
 5. Report checks run, failures, assumptions, and remaining risks.
 
 After done any task or session:
+- Clean up your temp file, scratch scripts,.. you make while implementation the task.
 - Create a log-xxx.md in docs/agents/logs follow format:
 ```markdown
 - Task: <Brief task description>
