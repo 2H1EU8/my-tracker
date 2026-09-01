@@ -374,7 +374,7 @@ h2 {
 .phase-rail {
   display: flex;
   gap: 8px;
-  overflow-x: auto;
+  flex-wrap: wrap;
   margin-bottom: 32px;
   border-bottom: 1px solid var(--border);
   padding-bottom: 8px;
@@ -401,7 +401,7 @@ h2 {
   display: grid;
   grid-template-columns: repeat(3, minmax(280px, 1fr));
   gap: 12px;
-  overflow-x: auto;
+  flex-wrap: wrap;
   padding-bottom: 16px;
   overscroll-behavior-inline: contain;
   scrollbar-color: var(--border-strong) var(--surface-1);
@@ -1646,7 +1646,7 @@ select[aria-invalid="true"] {
   gap: 8px;
   padding-bottom: 4px;
   display: flex;
-  overflow-x: auto;
+  flex-wrap: wrap;
 }
 .kanban-column {
   flex: 1;
@@ -1707,6 +1707,15 @@ select[aria-invalid="true"] {
   font-weight: 500;
   border-color: transparent;
 }
+
+.phase-rail button:hover {
+  background: var(--surface-hover);
+}
+.phase-rail .phase-active:hover {
+  background: var(--note-clay);
+  opacity: 0.9;
+}
+
 .phase-rail button:not(.phase-active) {
   border: 1px solid var(--border);
 }
@@ -1818,4 +1827,91 @@ select[aria-invalid="true"] {
 }
 .column-add-btn:hover {
   background: var(--surface-2);
+}
+
+
+/* Dropdown Menu */
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-trigger {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  padding: 4px;
+  color: var(--text-muted);
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.dropdown-trigger:hover {
+  background-color: var(--surface-hover);
+  color: var(--text);
+}
+
+.dropdown-content {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  background-color: var(--surface);
+  min-width: 160px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  animation: dropdownFadeIn 0.1s ease-out;
+}
+
+@keyframes dropdownFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown-item {
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: 8px 12px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  width: 100%;
+}
+
+.dropdown-item:hover {
+  background-color: var(--surface-hover);
+}
+
+.dropdown-item.danger:hover {
+  background-color: #3b1818;
+  color: #ff6b6b;
+}
+
+/* Hover revealed meatballs */
+.hover-reveal-container .hover-reveal-target {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.hover-reveal-container:hover .hover-reveal-target,
+.hover-reveal-container:focus-within .hover-reveal-target {
+  opacity: 1;
+}
+
+/* Hide checklist status text on hover so meatball menu takes its place smoothly */
+.checklist-row .checklist-state {
+  transition: opacity 0.15s;
+}
+.checklist-row:hover .checklist-state {
+  display: none;
 }

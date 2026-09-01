@@ -76,6 +76,37 @@ type ChecklistLoadState =
   | { status: "loaded"; items: ChecklistItem[] }
   | { status: "failed"; error: string };
 
+
+function DropdownMenu({ trigger, children }: { trigger: ReactNode, children: ReactNode }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
+
+  return (
+    <div className="dropdown" ref={ref} onClick={(e) => e.stopPropagation()}>
+      <div className="dropdown-trigger" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsOpen(!isOpen); }}>
+        {trigger}
+      </div>
+      {isOpen && (
+        <div className="dropdown-content" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface EntityDialogProps {
   dialogTitle: string;
   initialValue?: string;
@@ -486,7 +517,7 @@ function BackupSettingsDialog({ onExport, onRestore }: BackupSettingsDialogProps
               </div>
             </div>
           ) : (
-            <div className="backup-settings-content">
+            <div className="dialog-body backup-settings-content">
               <h3>Export Backup</h3>
               <p>Export your complete local state to a JSON file.</p>
               <button
@@ -684,7 +715,7 @@ function ImportPlanDialog({ onImport }: ImportPlanDialogProps) {
                 </div>
               </div>
             ) : (
-              <div className="import-plan-content">
+              <div className="dialog-body import-plan-content">
                 <p>Select a JSON AI Plan file to import.</p>
                 <input
                   accept="application/json,.json"
@@ -2663,22 +2694,20 @@ function TaskCard({
           onRenameTask={onRenameTask}
         />
         <div className="card-actions">
-          <button
-            aria-label={`Open actions for ${task.title}`}
-            className="icon-button card-icon"
-            data-tooltip="Task actions"
-            onClick={() => {
-              setActionError(undefined);
-              setRetryTaskAction(undefined);
-              setIsActionsOpen(true);
-            }}
-            ref={actionsTriggerRef}
-            title="Task actions"
-            type="button"
-            data-testid={`task-actions-${task.id}`}
-          >
-            <DotsThreeIcon aria-hidden="true" size={20} weight="bold" />
-          </button>
+          <DropdownMenu trigger={<DotsThreeIcon aria-hidden="true" size={20} weight="bold" />}>
+            <EntityDialog
+              dialogTitle="Rename task"
+              initialValue={task.title}
+              inputId={`rename-task-${task.id}`}
+              label="Task title"
+              onSubmit={(title) => onRenameTask(task, title)}
+              placeholder="Task title"
+              submitLabel="Save changes"
+              triggerClassName="dropdown-item"
+              triggerIcon={<PencilIcon aria-hidden="true" size={16} />}
+              triggerLabel="Edit Title"
+            />
+          </DropdownMenu>
         </div>
       </div>
       <div style={{ pointerEvents: dragOver ? 'none' : 'auto' }}>
@@ -2959,7 +2988,7 @@ function TaskDetailsDialog({
 
   return (
     <>
-      <h4 className="task-title-heading" style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+      <h4 className="task-title-heading" style={{ display: "flex", alignItems: "flex-start", gap: "8px", margin: 0 }}>
         <button
           aria-busy={isOpening}
           aria-label={`Open task details for ${task.title}`}
@@ -2970,18 +2999,7 @@ function TaskDetailsDialog({
         >
           {task.title}
         </button>
-      <EntityDialog
-          dialogTitle="Rename task"
-          initialValue={task.title}
-          inputId={`rename-task-${task.id}`}
-          label="Task title"
-          onSubmit={(title) => onRenameTask(task, title)}
-          placeholder="Task title"
-          submitLabel="Save changes"
-          triggerClassName="inline-edit-button"
-          triggerIcon={<PencilSimpleIcon aria-hidden="true" size={14} />}
-          triggerLabel={`Rename task ${task.title}`}
-        /></h4>
+      </h4>
       {isOpen ? (
         <dialog
           aria-labelledby={titleId}
@@ -3053,7 +3071,7 @@ function TaskDetailsDialog({
                     const isPending = pendingToggleIds.has(item.id);
                     const error = toggleErrors[item.id];
                     return (
-                      <div className="checklist-row" key={item.id}>
+                      <div className="checklist-row hover-reveal-container" key={item.id}>
                         <label style={{ flex: 1 }}>
                           <input
                             checked={item.isCompleted}
@@ -3069,27 +3087,29 @@ function TaskDetailsDialog({
                             <span className="checklist-state">Completed</span>
                           ) : null}
                         </label>
-                        <div style={{ display: 'flex', gap: '4px', opacity: 0.6 }}>
-                          <EntityDialog
-                            dialogTitle="Edit Checklist Item"
-                            initialValue={item.title}
-                            inputId={`edit-checklist-item-${item.id}`}
-                            label="Item title"
-                            onSubmit={(title) => onRenameChecklistItem(task.id, item.id, title).then(() => onRefreshChecklist())}
-                            placeholder="A small next step"
-                            submitLabel="Save"
-                            triggerClassName="icon-button"
-                            triggerIcon={<PencilIcon aria-hidden="true" size={14} />}
-                            triggerLabel=""
-                          />
-                          <button
-                            className="icon-button"
-                            onClick={() => onDeleteChecklistItem(task.id, item.id).then(() => onRefreshChecklist())}
-                            title="Delete item"
-                            type="button"
-                          >
-                            <TrashIcon aria-hidden="true" size={14} />
-                          </button>
+                        <div className="hover-reveal-target" style={{ display: 'flex' }}>
+                          <DropdownMenu trigger={<DotsThreeIcon aria-hidden="true" size={18} weight="bold" />}>
+                            <EntityDialog
+                              dialogTitle="Edit Checklist Item"
+                              initialValue={item.title}
+                              inputId={`edit-checklist-item-${item.id}`}
+                              label="Item title"
+                              onSubmit={(title) => onRenameChecklistItem(task.id, item.id, title).then(() => onRefreshChecklist())}
+                              placeholder="A small next step"
+                              submitLabel="Save"
+                              triggerClassName="dropdown-item"
+                              triggerIcon={<PencilIcon aria-hidden="true" size={16} />}
+                              triggerLabel="Edit"
+                            />
+                            <button
+                              className="dropdown-item danger"
+                              onClick={() => onDeleteChecklistItem(task.id, item.id).then(() => onRefreshChecklist())}
+                              title="Delete item"
+                              type="button"
+                            >
+                              <TrashIcon aria-hidden="true" size={16} /> Delete
+                            </button>
+                          </DropdownMenu>
                         </div>
                         {isPending ? (
                           <p className="checklist-row-state" role="status">
