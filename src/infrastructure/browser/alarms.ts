@@ -35,4 +35,8 @@ export class BrowserAlarmScheduler implements AlarmScheduler {
   async cancelTaskDeadlineAlarm(id: string): Promise<void> {
     await browser.alarms.clear(`my-tracker:task-deadline:${id}`);
   }
+
+  async clearAllAlarms(): Promise<void> {
+    await browser.alarms.clearAll();
+  }
 }

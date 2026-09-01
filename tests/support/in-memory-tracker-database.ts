@@ -1,10 +1,32 @@
-class InMemoryReminderRepository {
-  private reminders: any[] = [];
-  async get(id: any) { return this.reminders.find(r => r.id === id); }
-  async list() { return this.reminders; }
-  async put(r: any) { this.reminders = this.reminders.filter(x => x.id !== r.id); this.reminders.push(r); }
-  async putMany(rs: any[]) { for (const r of rs) { await this.put(r); } }
-  async delete(id: any) { this.reminders = this.reminders.filter(r => r.id !== id); }
+class InMemoryReminderRepository implements ReminderRepository {
+  constructor(private readonly records: Map<string, Reminder>) {}
+
+  async get(id: string): Promise<Reminder | undefined> {
+    const reminder = this.records.get(id);
+    return reminder === undefined ? undefined : { ...reminder };
+  }
+
+  async list(): Promise<Reminder[]> {
+    return Array.from(this.records.values()).sort((a, b) => a.dueAt.localeCompare(b.dueAt));
+  }
+
+  async put(reminder: Reminder): Promise<void> {
+    this.records.set(reminder.id, { ...reminder });
+  }
+
+  async putMany(reminders: readonly Reminder[]): Promise<void> {
+    for (const r of reminders) {
+      await this.put(r);
+    }
+  }
+
+  async delete(id: string): Promise<void> {
+    this.records.delete(id);
+  }
+
+  async clear(): Promise<void> {
+    this.records.clear();
+  }
 }
 import type {
   ChecklistItemRepository,
@@ -32,6 +54,7 @@ interface Records {
   tasks: Map<string, Task>;
   checklistItems: Map<string, ChecklistItem>;
   notes: Map<string, Note>;
+  reminders: Map<string, Reminder>;
 }
 
 function copyEntity<T extends object>(entity: T): T {
@@ -58,10 +81,17 @@ function copyRecords(records: Records): Records {
     notes: new Map(
       [...records.notes].map(([id, note]) => [id, copyEntity(note)]),
     ),
+    reminders: new Map(
+      [...records.reminders].map(([id, reminder]) => [id, copyEntity(reminder)]),
+    ),
   };
 }
 
 class InMemoryGoalRepository implements GoalRepository {
+
+  async clear(): Promise<void> {
+    this.records.clear();
+  }
   constructor(private readonly records: Map<string, Goal>) {}
 
   async get(id: string): Promise<Goal | undefined> {
@@ -85,6 +115,10 @@ class InMemoryGoalRepository implements GoalRepository {
 }
 
 class InMemoryPhaseRepository implements PhaseRepository {
+
+  async clear(): Promise<void> {
+    this.records.clear();
+  }
   constructor(private readonly records: Map<string, Phase>) {}
 
   async get(id: string): Promise<Phase | undefined> {
@@ -116,6 +150,10 @@ class InMemoryPhaseRepository implements PhaseRepository {
 }
 
 class InMemoryTaskRepository implements TaskRepository {
+
+  async clear(): Promise<void> {
+    this.records.clear();
+  }
   constructor(private readonly records: Map<string, Task>) {}
 
   async get(id: string): Promise<Task | undefined> {
@@ -145,6 +183,10 @@ class InMemoryTaskRepository implements TaskRepository {
 }
 
 class InMemoryChecklistItemRepository implements ChecklistItemRepository {
+
+  async clear(): Promise<void> {
+    this.records.clear();
+  }
   constructor(private readonly records: Map<string, ChecklistItem>) {}
 
   async get(id: string): Promise<ChecklistItem | undefined> {
@@ -183,6 +225,10 @@ class InMemoryChecklistItemRepository implements ChecklistItemRepository {
 }
 
 class InMemoryNoteRepository implements NoteRepository {
+
+  async clear(): Promise<void> {
+    this.records.clear();
+  }
   constructor(private readonly records: Map<string, Note>) {}
 
   async get(id: string): Promise<Note | undefined> {
@@ -216,6 +262,7 @@ function repositoriesFor(records: Records): TrackerRepositories {
     tasks: new InMemoryTaskRepository(records.tasks),
     checklistItems: new InMemoryChecklistItemRepository(records.checklistItems),
     notes: new InMemoryNoteRepository(records.notes),
+    reminders: new InMemoryReminderRepository(records.reminders),
   };
 }
 
@@ -226,6 +273,7 @@ export class InMemoryTrackerDatabase implements TrackerDatabase {
     tasks: new Map(),
     checklistItems: new Map(),
     notes: new Map(),
+    reminders: new Map(),
   };
 
   async transaction<T>(

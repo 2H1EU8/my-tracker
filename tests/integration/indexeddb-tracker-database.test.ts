@@ -182,7 +182,7 @@ describe("IndexedDbTrackerDatabase", () => {
     );
     await reopened.database.close();
 
-    const inspectionRequest = indexedDB.open(name, 2);
+    const inspectionRequest = indexedDB.open(name, 3);
     await requestCompletion(inspectionRequest);
     const inspectionDatabase = inspectionRequest.result;
     expect(Array.from(inspectionDatabase.objectStoreNames)).toEqual([
@@ -190,6 +190,7 @@ describe("IndexedDbTrackerDatabase", () => {
       "goals",
       "notes",
       "phases",
+      "reminders",
       "tasks",
     ]);
     const inspectionTransaction = inspectionDatabase.transaction(

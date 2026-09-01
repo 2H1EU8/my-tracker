@@ -343,6 +343,210 @@ interface ImportPlanDialogProps {
   onImport: (content: string) => Promise<{ goalsImported: number; phasesImported: number; tasksImported: number; checklistItemsImported: number }>;
 }
 
+
+interface BackupSettingsDialogProps {
+  onExport: () => Promise<void>;
+  onRestore: (backupData: unknown) => Promise<void>;
+}
+
+function BackupSettingsDialog({ onExport, onRestore }: BackupSettingsDialogProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [fileContent, setFileContent] = useState<string>();
+  const [fileName, setFileName] = useState<string>();
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [error, setError] = useState<string>();
+  const [successSummary, setSuccessSummary] = useState<string>();
+  const [previewSummary, setPreviewSummary] = useState<string>();
+  const [parsedData, setParsedData] = useState<any>();
+  
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setFileContent(undefined);
+      setFileName(undefined);
+      setError(undefined);
+      setSuccessSummary(undefined);
+      setPreviewSummary(undefined);
+      setParsedData(undefined);
+      setIsRestoring(false);
+      setIsExporting(false);
+    }
+  }, [isOpen]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 15 * 1024 * 1024) {
+      setError("File is too large. Maximum size is 15MB.");
+      return;
+    }
+
+    setFileName(file.name);
+    setError(undefined);
+    setSuccessSummary(undefined);
+    setPreviewSummary(undefined);
+    setParsedData(undefined);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result;
+      if (typeof result === "string") {
+        setFileContent(result);
+        try {
+          const parsed = JSON.parse(result);
+          setParsedData(parsed);
+          
+          if (parsed && parsed.data) {
+            const d = parsed.data;
+            setPreviewSummary(`This backup contains ${d.goals?.length || 0} goals, ${d.phases?.length || 0} phases, ${d.tasks?.length || 0} tasks, ${d.checklistItems?.length || 0} checklist items, ${d.notes?.length || 0} notes, and ${d.reminders?.length || 0} reminders.`);
+          } else {
+             setError("Invalid backup file format.");
+          }
+        } catch (e) {
+          setError("Failed to parse JSON file.");
+        }
+      } else {
+        setError("Failed to read file.");
+      }
+    };
+    reader.onerror = () => {
+      setError("Failed to read file.");
+    };
+    reader.readAsText(file);
+  };
+
+  const confirmRestore = async () => {
+    if (!parsedData) return;
+    setIsRestoring(true);
+    setError(undefined);
+    try {
+      await onRestore(parsedData);
+      setSuccessSummary("Backup restored successfully. Your data has been replaced.");
+    } catch (err: any) {
+      setError(err instanceof Error ? err.message : "An unknown error occurred during restore.");
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      await onExport();
+    } catch (err: any) {
+      setError(err instanceof Error ? err.message : "An unknown error occurred during export.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  return (
+    <>
+      <button
+        aria-label="Settings and Backup"
+        className="icon-button"
+        onClick={() => setIsOpen(true)}
+        ref={triggerRef}
+        title="Settings and Backup"
+        type="button"
+      >
+        <GearIcon aria-hidden="true" size={20} weight="bold" />
+      </button>
+
+      {isOpen && (
+        <DialogModal
+          onClose={() => setIsOpen(false)}
+          restoreFocusRef={triggerRef}
+          title="Settings and Backup"
+        >
+          {successSummary ? (
+            <div className="import-success">
+              <p>{successSummary}</p>
+              <div className="dialog-actions">
+                <button
+                  className="button-primary"
+                  onClick={() => setIsOpen(false)}
+                  type="button"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="backup-settings-content">
+              <h3>Export Backup</h3>
+              <p>Export your complete local state to a JSON file.</p>
+              <button
+                className="button-secondary"
+                disabled={isExporting || isRestoring}
+                onClick={() => void handleExport()}
+                type="button"
+                style={{ margin: "8px 0 24px" }}
+              >
+                {isExporting ? "Exporting..." : "Export Backup"}
+              </button>
+
+              <hr style={{ margin: "16px 0", borderTop: "1px solid var(--border-color)" }} />
+
+              <h3>Restore Backup</h3>
+              <p>Select a JSON backup file to restore.</p>
+              <input
+                accept="application/json,.json"
+                className="file-input"
+                disabled={isRestoring || isExporting}
+                onChange={handleFileChange}
+                ref={fileInputRef}
+                type="file"
+                style={{ margin: "16px 0" }}
+              />
+
+              {previewSummary && !error && (
+                <div className="import-preview" style={{ background: "var(--background-raised)", padding: "12px", borderRadius: "8px", margin: "16px 0" }}>
+                  <p><strong>File:</strong> {fileName}</p>
+                  <p>{previewSummary}</p>
+                  <p style={{ color: "var(--error-color)", marginTop: "8px", fontWeight: "bold" }}>
+                    Warning: Restoring will completely replace all existing local data. This action cannot be undone.
+                  </p>
+                </div>
+              )}
+
+              {error && (
+                <div className="error-banner" style={{ margin: "16px 0" }}>
+                  <p>{error}</p>
+                </div>
+              )}
+
+              <div className="dialog-actions">
+                <button
+                  disabled={isRestoring || isExporting}
+                  onClick={() => setIsOpen(false)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  className="button-primary"
+                  disabled={isRestoring || isExporting || !parsedData || !!error}
+                  onClick={() => void confirmRestore()}
+                  type="button"
+                  style={{ background: "var(--error-color)" }}
+                >
+                  {isRestoring ? "Restoring..." : "Confirm Restore"}
+                </button>
+              </div>
+            </div>
+          )}
+        </DialogModal>
+      )}
+    </>
+  );
+}
+
+
 function ImportPlanDialog({ onImport }: ImportPlanDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [fileContent, setFileContent] = useState<string>();
@@ -724,6 +928,39 @@ export function TrackerApp({ service }: TrackerAppProps) {
   const [announcement, setAnnouncement] = useState("");
   const [urgentAnnouncement, setUrgentAnnouncement] = useState("");
   const [retryOperation, setRetryOperation] = useState<RetryOperation>();
+
+  
+  const onExportBackup = async () => {
+    try {
+      const backup = await service.exportBackup(chrome.runtime.getManifest().version);
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `my-tracker-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Export failed", error);
+      throw error;
+    }
+  };
+
+  const onRestoreBackup = async (backupData: unknown) => {
+    setSaveState("saving");
+    try {
+      await service.restoreBackup(backupData);
+      await loadWorkspace();
+      setSaveState("saved");
+      setRetryOperation(undefined);
+    } catch (error) {
+      setSaveState("failed");
+      setRetryOperation(undefined);
+      throw error;
+    }
+  };
 
   const onImportPlan = async (parsedPlan: unknown) => {
     let summary: any;
@@ -1209,6 +1446,8 @@ interface HomeViewProps {
   onRetryGoals: () => Promise<void>;
   onRetryInbox: () => Promise<void>;
   onImportPlan: (plan: unknown) => Promise<any>;
+  onExportBackup: () => Promise<void>;
+  onRestoreBackup: (backupData: unknown) => Promise<void>;
 }
 
 function HomeView({
@@ -1226,6 +1465,8 @@ function HomeView({
   onRetryGoals,
   onRetryInbox,
   onImportPlan,
+  onExportBackup,
+  onRestoreBackup,
 }: HomeViewProps) {
   return (
     <div className="home-stack">
@@ -1250,6 +1491,7 @@ function HomeView({
         <div className="section-heading page-heading">
           <h1 id="goals-title">Goals</h1>
           <div style={{ display: "flex", gap: "8px" }}>
+            <BackupSettingsDialog onExport={onExportBackup} onRestore={onRestoreBackup} />
             <ImportPlanDialog onImport={onImportPlan} />
             <EntityDialog
             dialogTitle="Create goal"

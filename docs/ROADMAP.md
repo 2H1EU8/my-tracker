@@ -139,6 +139,10 @@ Exit gate:
 
 ## M5 — Backup and restore
 
+Status: implementation complete and automated gates passing; QA validation remains pending.
+
+Ready work item: [`docs/work-items/M5_BACKUP_RESTORE.md`](work-items/M5_BACKUP_RESTORE.md)
+
 Outcome:
 
 Export the complete local state and restore it in a clean profile.

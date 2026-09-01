@@ -1,4 +1,5 @@
 import { DomainError } from "../domain/errors";
+import type { TrackerBackup } from "../domain/model";
 import type {
   ChecklistItem,
   ChecklistProgressByTask,
@@ -69,6 +70,95 @@ export class TrackerService {
     private readonly dependencies: ApplicationDependencies,
   ) {}
 
+  
+  async exportBackup(appVersion: string): Promise<TrackerBackup> {
+    return this.database.transaction(
+      ["goals", "phases", "tasks", "checklistItems", "notes", "reminders"],
+      "readonly",
+      async (repositories) => {
+        const [goals, phases, tasks, checklistItems, notes, reminders] = await Promise.all([
+          repositories.goals.list(),
+          repositories.phases.list(),
+          repositories.tasks.list(),
+          repositories.checklistItems.list(),
+          repositories.notes.list(),
+          repositories.reminders.list(),
+        ]);
+
+        return {
+          format: "my-tracker/backup",
+          $schema: "https://my-tracker.local/schemas/my-tracker-backup.schema.json",
+          schemaVersion: "1.0.0",
+          appVersion,
+          exportedAt: this.dependencies.clock(),
+          data: {
+            goals,
+            phases,
+            tasks,
+            checklistItems,
+            notes,
+            reminders,
+            settings: {
+              timeZone: "UTC",
+              theme: "dark",
+              reducedMotion: false,
+              notifyTaskDeadlinesByDefault: true,
+            },
+          },
+        };
+      },
+    );
+  }
+
+  async restoreBackup(backup: unknown): Promise<void> {
+    const { validateBackup } = await import("./backup-schema.js");
+    if (!validateBackup(backup)) {
+      throw new DomainError("invalid_backup", "Invalid backup format: " + JSON.stringify(validateBackup.errors));
+    }
+
+    const backupData = backup as TrackerBackup;
+
+    await this.database.transaction(
+      ["goals", "phases", "tasks", "checklistItems", "notes", "reminders"],
+      "readwrite",
+      async (repositories) => {
+        // Clear all stores first
+        await Promise.all([
+          repositories.goals.clear(),
+          repositories.phases.clear(),
+          repositories.tasks.clear(),
+          repositories.checklistItems.clear(),
+          repositories.notes.clear(),
+          repositories.reminders.clear(),
+        ]);
+
+        // Put all data
+        await Promise.all([
+          repositories.goals.putMany(backupData.data.goals),
+          repositories.phases.putMany(backupData.data.phases),
+          repositories.tasks.putMany(backupData.data.tasks),
+          repositories.checklistItems.putMany(backupData.data.checklistItems),
+          repositories.notes.putMany(backupData.data.notes),
+          repositories.reminders.putMany(backupData.data.reminders),
+        ]);
+      },
+    );
+
+    if (this.dependencies.alarms) {
+      await this.dependencies.alarms.clearAllAlarms();
+    }
+    for (const task of backupData.data.tasks) {
+      if (task.dueAt !== undefined && task.notifyAtDue) {
+        await this.dependencies.alarms.scheduleTaskDeadlineAlarm(task.id, task.dueAt);
+      }
+    }
+    for (const reminder of backupData.data.reminders) {
+      if (reminder.state === "scheduled") {
+        await this.dependencies.alarms.scheduleReminderAlarm(reminder.id, reminder.dueAt);
+      }
+    }
+  }
+
   async getWorkspace(): Promise<WorkspaceSnapshot> {
     return this.database.transaction(
       ["goals", "phases", "tasks"],
@@ -125,16 +215,12 @@ export class TrackerService {
         repositories.notes.list(),
         repositories.reminders.list(),
       ]);
-      const items = [
+      const items: any[] = [
         ...notes.map((note) => ({ kind: "note" as const, note })),
         ...reminders.map((reminder) => ({ kind: "reminder" as const, reminder })),
       ];
       return {
-        items: items.sort((a, b) => {
-          const timeA = a.kind === "note" ? a.note.createdAt : a.reminder.createdAt;
-          const timeB = b.kind === "note" ? b.note.createdAt : b.reminder.createdAt;
-          return timeB.localeCompare(timeA);
-        }),
+        items
       };
     });
   }

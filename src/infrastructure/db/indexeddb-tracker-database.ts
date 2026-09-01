@@ -176,6 +176,10 @@ class IndexedDbGoalRepository implements GoalRepository {
   async putMany(goals: readonly Goal[]): Promise<void> {
     await Promise.all(goals.map((goal) => requestResult(this.store.put(goal))));
   }
+
+  async clear(): Promise<void> {
+    await requestResult(this.store.clear());
+  }
 }
 
 class IndexedDbPhaseRepository implements PhaseRepository {
@@ -216,6 +220,10 @@ class IndexedDbPhaseRepository implements PhaseRepository {
   async putMany(phases: readonly Phase[]): Promise<void> {
     await Promise.all(phases.map((phase) => requestResult(this.store.put(phase))));
   }
+
+  async clear(): Promise<void> {
+    await requestResult(this.store.clear());
+  }
 }
 
 class IndexedDbTaskRepository implements TaskRepository {
@@ -255,6 +263,10 @@ class IndexedDbTaskRepository implements TaskRepository {
 
   async putMany(tasks: readonly Task[]): Promise<void> {
     await Promise.all(tasks.map((task) => requestResult(this.store.put(task))));
+  }
+
+  async clear(): Promise<void> {
+    await requestResult(this.store.clear());
   }
 }
 
@@ -303,6 +315,10 @@ class IndexedDbChecklistItemRepository implements ChecklistItemRepository {
       ),
     );
   }
+
+  async clear(): Promise<void> {
+    await requestResult(this.store.clear());
+  }
 }
 
 class IndexedDbNoteRepository implements NoteRepository {
@@ -334,6 +350,10 @@ class IndexedDbNoteRepository implements NoteRepository {
   async delete(id: string): Promise<void> {
     await requestResult(this.store.delete(id));
   }
+
+  async clear(): Promise<void> {
+    await requestResult(this.store.clear());
+  }
 }
 
 class IndexedDbReminderRepository implements ReminderRepository {
@@ -362,6 +382,10 @@ class IndexedDbReminderRepository implements ReminderRepository {
 
   async delete(id: string): Promise<void> {
     await requestResult(this.store.delete(id));
+  }
+
+  async clear(): Promise<void> {
+    await requestResult(this.store.clear());
   }
 }
 

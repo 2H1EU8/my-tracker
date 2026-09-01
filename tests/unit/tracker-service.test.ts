@@ -8,7 +8,7 @@ describe("TrackerService", () => {
     const phase = await service.createPhase(goal.id, "Foundation");
     const task = await service.createTask(goal.id, phase.id, "Create stores");
 
-    expect(goal).toMatchObject({ title: "Build M1", status: "active", position: 0 });
+    expect(goal).toMatchObject({ title: "Build M1", status: "active", position: 0 });  
     expect(task).toMatchObject({
       goalId: goal.id,
       phaseId: phase.id,
@@ -375,4 +375,34 @@ describe("TrackerService", () => {
       item,
     ]);
   });
+
+  it("round-trips backup and restore deterministically", async () => {
+    const { service } = createTrackerServiceFixture();
+    
+    // Create some data
+    const goal = await service.createGoal("Backup Goal");
+    const phase = await service.createPhase(goal.id, "Backup Phase");
+    const task = await service.createTask(goal.id, phase.id, "Backup Task");
+    await service.createChecklistItem(task.id, "Backup Checklist");
+    await service.createNote("Backup Note", { kind: "none" });
+
+    const originalBackup = await service.exportBackup("0.1.0");
+    
+    // Modify database to simulate overwrite
+    await service.createGoal("Should be erased");
+    
+    // Restore
+    await service.restoreBackup(originalBackup);
+    
+    const restoredBackup = await service.exportBackup("0.1.0");
+    
+    // Should be exactly identical
+    expect({ ...restoredBackup, exportedAt: "" }).toEqual({ ...originalBackup, exportedAt: "" });
+    
+    // Verify erased is gone
+    const workspace = await service.getWorkspace();
+    expect(workspace.goals.length).toBe(1);
+    expect(workspace.goals[0].goal.title).toBe("Backup Goal");
+  });
+
 });

@@ -14,6 +14,7 @@ export interface GoalRepository {
   list(): Promise<Goal[]>;
   put(goal: Goal): Promise<void>;
   putMany(goals: readonly Goal[]): Promise<void>;
+  clear(): Promise<void>;
 }
 
 export interface PhaseRepository {
@@ -22,6 +23,7 @@ export interface PhaseRepository {
   listByGoal(goalId: string): Promise<Phase[]>;
   put(phase: Phase): Promise<void>;
   putMany(phases: readonly Phase[]): Promise<void>;
+  clear(): Promise<void>;
 }
 
 export interface TaskRepository {
@@ -30,6 +32,7 @@ export interface TaskRepository {
   listByPhase(phaseId: string): Promise<Task[]>;
   put(task: Task): Promise<void>;
   putMany(tasks: readonly Task[]): Promise<void>;
+  clear(): Promise<void>;
 }
 
 export interface ChecklistItemRepository {
@@ -38,6 +41,7 @@ export interface ChecklistItemRepository {
   listByTask(taskId: string): Promise<ChecklistItem[]>;
   put(checklistItem: ChecklistItem): Promise<void>;
   putMany(checklistItems: readonly ChecklistItem[]): Promise<void>;
+  clear(): Promise<void>;
 }
 
 export interface NoteRepository {
@@ -46,6 +50,7 @@ export interface NoteRepository {
   put(note: Note): Promise<void>;
   putMany(notes: readonly Note[]): Promise<void>;
   delete(id: string): Promise<void>;
+  clear(): Promise<void>;
 }
 
 export interface ReminderRepository {
@@ -54,6 +59,7 @@ export interface ReminderRepository {
   put(reminder: Reminder): Promise<void>;
   putMany(reminders: readonly Reminder[]): Promise<void>;
   delete(id: string): Promise<void>;
+  clear(): Promise<void>;
 }
 
 export interface TrackerRepositories {
@@ -79,6 +85,7 @@ export interface AlarmScheduler {
   cancelReminderAlarm(id: string): Promise<void>;
   scheduleTaskDeadlineAlarm(id: string, dueAt: string): Promise<void>;
   cancelTaskDeadlineAlarm(id: string): Promise<void>;
+  clearAllAlarms(): Promise<void>;
 }
 
 export interface NotificationService {
