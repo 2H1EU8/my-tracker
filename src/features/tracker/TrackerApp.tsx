@@ -1498,7 +1498,7 @@ function HomeView({
           <h1 id="goals-title" className="sr-only">Goals</h1>
           <div className="goals-header-actions">
             <p className="goals-count-label">Goals &middot; {goals?.length ?? 0}</p>
-            <div style={{ display: "flex", gap: "8px" }}>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
               <EntityDialog
                 dialogTitle="New Note"
                 inputId="new-note-body"
@@ -1685,7 +1685,9 @@ function InboxView({
   return (
     <section aria-labelledby="inbox-title" className="inbox-column">
       <h2 id="inbox-title" className="sr-only">Inbox</h2>
-      <p className="inbox-count-label">Inbox &middot; {notes === undefined ? "—" : notes.length}</p>
+      <div className="inbox-header-actions">
+        <p className="inbox-count-label">Inbox &middot; {notes === undefined ? "—" : notes.length}</p>
+      </div>
       
       {loadError !== undefined ? (
         <div className="error-banner section-error">
