@@ -1735,9 +1735,42 @@ function NoteCard({
   workspaceFailed,
 }: NoteCardProps) {
   const linkLabel = noteLinkLabel(note, goals);
+  const [dragOver, setDragOver] = useState<"before" | "after" | null>(null);
+
   return (
-    <article className="note-card" data-testid={`note-card-${note.id}`} data-note-id={note.id} tabIndex={-1}>
-      <div className="note-card-header">
+    <article 
+      className={`note-card ${dragOver ? `drag-over-${dragOver}` : ""}`} 
+      data-testid={`note-card-${note.id}`} 
+      data-note-id={note.id} 
+      tabIndex={-1}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData("tracker/note", note.id);
+        e.dataTransfer.effectAllowed = "move";
+      }}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes("tracker/note")) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const rect = e.currentTarget.getBoundingClientRect();
+        const isTop = e.clientY < rect.top + rect.height / 2;
+        setDragOver(isTop ? "before" : "after");
+      }}
+      onDragLeave={() => setDragOver(null)}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const placement = dragOver;
+        setDragOver(null);
+        if (!placement) return;
+        const draggedId = e.dataTransfer.getData("tracker/note");
+        if (draggedId && draggedId !== note.id) {
+          // Fake a Note object for the dragged item since onReorder only needs the IDs in TrackerApp
+          onReorder({ id: draggedId } as Note, note, placement);
+        }
+      }}
+    >
+      <div className="note-card-header" style={{ pointerEvents: dragOver ? 'none' : 'auto' }}>
         <p className="note-body">{note.body}</p>
         <div className="card-actions note-card-actions">
           <NoteEditorDialog
@@ -1755,7 +1788,7 @@ function NoteCard({
           />
         </div>
       </div>
-      {linkLabel && <p className="note-context">{linkLabel}</p>}
+      {linkLabel && <p className="note-context" style={{ pointerEvents: dragOver ? 'none' : 'auto' }}>{linkLabel}</p>}
     </article>
   );
 }
@@ -2142,7 +2175,7 @@ interface GoalViewProps {
   onCreatePhase: (title: string) => Promise<unknown>;
   onCreateTask: (title: string) => Promise<unknown>;
   onGetTaskChecklist: (taskId: string) => Promise<TaskChecklistSnapshot>;
-  onMoveTask: (task: Task, status: TaskStatus) => Promise<unknown>;
+  onMoveTask: (task: Task, status: TaskStatus, phaseId?: string) => Promise<unknown>;
   onRenameGoal: (title: string) => Promise<unknown>;
   onRenamePhase: (phase: Phase, title: string) => Promise<unknown>;
   onRenameTask: (task: Task, title: string) => Promise<unknown>;
@@ -2180,6 +2213,8 @@ function GoalView({
   onRetryChecklistProgress,
   selectedPhase,
 }: GoalViewProps) {
+  const [dragOverPhase, setDragOverPhase] = useState<string | null>(null);
+
   return (
     <section>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '6px' }}>
@@ -2241,11 +2276,27 @@ function GoalView({
             {goalTree.phases.map(({ phase }) => (
               <button
                 aria-current={phase.id === selectedPhase?.phase.id ? "page" : undefined}
-                className={phase.id === selectedPhase?.phase.id ? "phase-active" : undefined}
+                className={`${phase.id === selectedPhase?.phase.id ? "phase-active" : ""} ${dragOverPhase === phase.id ? "drag-over-phase" : ""}`}
                 data-phase-id={phase.id} data-testid={`phase-tab-${phase.id}`}
                 key={phase.id}
                 onClick={() => onSelectPhase(phase.id)}
                 type="button"
+
+                onDragOver={(e) => {
+                  if (!e.dataTransfer.types.includes("tracker/task")) return;
+                  e.preventDefault();
+                  setDragOverPhase(phase.id);
+                }}
+                onDragLeave={() => setDragOverPhase(null)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOverPhase(null);
+                  const draggedId = e.dataTransfer.getData("tracker/task");
+                  if (draggedId) {
+                    // Update phase of task (requires changes in onMoveTask)
+                    onMoveTask({ id: draggedId } as Task, "todo", phase.id); 
+                  }
+                }}
               >
                 {phase.title}
               </button>
@@ -2287,7 +2338,7 @@ interface BoardProps {
   onCreateChecklistItem: (taskId: string, title: string) => Promise<ChecklistItem>;
   onCreateTask: (title: string) => Promise<unknown>;
   onGetTaskChecklist: (taskId: string) => Promise<TaskChecklistSnapshot>;
-  onMoveTask: (task: Task, status: TaskStatus) => Promise<unknown>;
+  onMoveTask: (task: Task, status: TaskStatus, phaseId?: string) => Promise<unknown>;
   onRenamePhase: (title: string) => Promise<unknown>;
   onRenameTask: (task: Task, title: string) => Promise<unknown>;
   onReorderTask: (
@@ -2314,6 +2365,8 @@ function Board({
   onSetChecklistItemCompleted,
   phaseTree,
 }: BoardProps) {
+  const [dragOverCol, setDragOverCol] = useState<TaskStatus | null>(null);
+
   return (
     <section className="board-section" aria-labelledby="phase-title">
       <div className="section-heading board-heading" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
@@ -2355,12 +2408,30 @@ function Board({
             phaseTree.tasks.filter((task) => task.status === status),
           );
           return (
-            <section className="kanban-column" key={status}>
-              <header>
+            <section 
+              className={`kanban-column ${dragOverCol === status ? 'drag-over-column' : ''}`} 
+              key={status}
+              onDragOver={(e) => {
+                if (!e.dataTransfer.types.includes("tracker/task")) return;
+                e.preventDefault();
+                setDragOverCol(status);
+              }}
+              onDragLeave={() => setDragOverCol(null)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOverCol(null);
+                const draggedId = e.dataTransfer.getData("tracker/task");
+                if (draggedId) {
+                  // We just need the ID to move it
+                  onMoveTask({ id: draggedId } as Task, status);
+                }
+              }}
+            >
+              <header style={{ pointerEvents: dragOverCol === status ? 'none' : 'auto' }}>
                 <h3>{STATUS_LABELS[status]} &middot; {tasks.length}</h3>
               </header>
               {tasks.length > 0 ? (
-                <div className="task-list">
+                <div className="task-list" style={{ pointerEvents: dragOverCol === status ? 'none' : 'auto' }}>
                   {tasks.map((task, index) => (
                     <TaskCard
                       checklistProgress={checklistProgress?.[task.id]}
@@ -2393,7 +2464,7 @@ interface TaskCardProps {
   nextTask: Task | undefined;
   onCreateChecklistItem: (taskId: string, title: string) => Promise<ChecklistItem>;
   onGetTaskChecklist: (taskId: string) => Promise<TaskChecklistSnapshot>;
-  onMoveTask: (task: Task, status: TaskStatus) => Promise<unknown>;
+  onMoveTask: (task: Task, status: TaskStatus, phaseId?: string) => Promise<unknown>;
   onRenameTask: (task: Task, title: string) => Promise<unknown>;
   onReorderTask: (
     task: Task,
@@ -2492,15 +2563,42 @@ function TaskCard({
         }
       : checklistProgress;
 
+  const [dragOver, setDragOver] = useState<"before" | "after" | null>(null);
+
   return (
     <article 
-      className="task-card" 
+      className={`task-card ${dragOver ? `drag-over-${dragOver}` : ""}`} 
       data-task-id={task.id} 
       tabIndex={-1} 
       style={task.status === "in_progress" ? { border: '2px solid var(--focus)' } : task.status === "done" ? { opacity: 0.7 } : {}}
       data-testid={`task-card-${task.id}`}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData("tracker/task", task.id);
+        e.dataTransfer.effectAllowed = "move";
+      }}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes("tracker/task")) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const rect = e.currentTarget.getBoundingClientRect();
+        const isTop = e.clientY < rect.top + rect.height / 2;
+        setDragOver(isTop ? "before" : "after");
+      }}
+      onDragLeave={() => setDragOver(null)}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const placement = dragOver;
+        setDragOver(null);
+        if (!placement) return;
+        const draggedId = e.dataTransfer.getData("tracker/task");
+        if (draggedId && draggedId !== task.id) {
+          onReorderTask({ id: draggedId } as Task, task, placement);
+        }
+      }}
     >
-      <div className="task-card-header">
+      <div className="task-card-header" style={{ pointerEvents: dragOver ? 'none' : 'auto' }}>
         <TaskDetailsDialog
           checklistState={checklistState}
           onCreateChecklistItem={onCreateChecklistItem}
@@ -2529,16 +2627,18 @@ function TaskCard({
           </button>
         </div>
       </div>
-      {task.status === "in_progress" && visibleChecklistProgress !== undefined && visibleChecklistProgress.total > 0 && (
-        <div style={{ height: '4px', background: 'var(--border)', borderRadius: '2px', marginBottom: '6px', marginTop: '6px' }}>
-           <div style={{ width: `${(visibleChecklistProgress.completed / visibleChecklistProgress.total) * 100}%`, height: '100%', background: 'var(--focus)', borderRadius: '2px' }}></div>
-        </div>
-      )}
-      {visibleChecklistProgress !== undefined && visibleChecklistProgress.total > 0 ? (
-        <p className="task-checklist-progress">
-          {visibleChecklistProgress.completed} of {visibleChecklistProgress.total} checked
-        </p>
-      ) : null}
+      <div style={{ pointerEvents: dragOver ? 'none' : 'auto' }}>
+        {task.status === "in_progress" && visibleChecklistProgress !== undefined && visibleChecklistProgress.total > 0 && (
+          <div style={{ height: '4px', background: 'var(--border)', borderRadius: '2px', marginBottom: '6px', marginTop: '6px' }}>
+             <div style={{ width: `${(visibleChecklistProgress.completed / visibleChecklistProgress.total) * 100}%`, height: '100%', background: 'var(--focus)', borderRadius: '2px' }}></div>
+          </div>
+        )}
+        {visibleChecklistProgress !== undefined && visibleChecklistProgress.total > 0 ? (
+          <p className="task-checklist-progress">
+            {visibleChecklistProgress.completed} of {visibleChecklistProgress.total} checked
+          </p>
+        ) : null}
+      </div>
       
       {checklistState.status === "failed" ? (
         <p className="task-checklist-load-error">Checklist unavailable. Open task details to retry.</p>
@@ -2601,7 +2701,7 @@ function TaskCard({
                       className="task-option"
                       disabled={isMutating || isCurrentStatus}
                       key={status}
-                      onClick={() => void runTaskMutation(() => onMoveTask(task, status))}
+                      onClick={() => void runTaskMutation((() => onMoveTask(task, status)) as any)}
                       type="button"
                     >
                       <StatusIcon aria-hidden="true" size={20} />
@@ -2612,7 +2712,6 @@ function TaskCard({
                 })}
               </div>
             </fieldset>
-            
             {actionError === undefined ? null : (
               <div className="task-action-error">
                 <p className="field-error">{actionError}</p>
@@ -2626,7 +2725,6 @@ function TaskCard({
                 )}
               </div>
             )}
-            
           </div>
         </dialog>
       ) : null}
