@@ -584,16 +584,9 @@ select[aria-invalid="true"] {
   width: min(100%, 880px);
 }
 
-.quick-note-section form {
-  display: grid;
-  gap: 12px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface-1);
-  padding: 24px;
-}
 
-.quick-note-section form > label,
+
+
 .checklist-create-form > label {
   font-size: 16px;
   font-weight: 700;
@@ -1003,9 +996,7 @@ select[aria-invalid="true"] {
     gap: 36px;
   }
 
-  .quick-note-section form {
-    padding: 18px;
-  }
+  
 
   .link-fields {
     grid-template-columns: 1fr;
