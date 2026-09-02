@@ -10,6 +10,20 @@ visual judgment.
 This document governs the repository runner. A milestone test plan remains the
 source of truth for acceptance criteria and release status.
 
+## Artifact target policy
+
+- Ongoing regression QA uses a freshly built `.output/chrome-mv3` from the
+  current checkout as its primary browser target.
+- Historical milestone artifacts are loaded only for a frozen milestone
+  boundary or an upgrade scenario that requires the real older database
+  version. They are evidence fixtures, not the ongoing regression target.
+- When QA temporarily replaces `.output/chrome-mv3` with a historical artifact,
+  record the switch. Before resuming regression, rebuild the current checkout,
+  reload the unpacked extension, and verify the source revision and manifest.
+- Interpret permissions, background entrypoints, and database versions against
+  the target artifact's owning phase. A later-phase permission is not an M2
+  failure; the exact M2 artifact still supplies M2 boundary evidence.
+
 ## One-time setup
 
 ```sh
@@ -34,6 +48,10 @@ the earlier layer passes or the failure requires a broader reproduction.
 | M2 browser journey | `pnpm test:e2e:m2` | Notes, checklist independence, New Tab reopen |
 | Shared smoke | `pnpm test:e2e:smoke` | UI shell, storage boundary, or shared component changes |
 | Full release | `pnpm qa:release` | Milestone completion and release recommendation only |
+
+At a milestone boundary, run `pnpm qa:release` as the one-shot gate. It already
+subsumes `qa:fast`, the production build, and all committed Playwright journeys;
+do not run those commands first unless a known failure needs isolation.
 
 For M3 and later, tag browser test titles with both `@smoke` when release
 critical and `@mX` for the owning milestone. Until a convenience script exists,

@@ -2,20 +2,35 @@
 
 ## Status
 
-`Q01–Q16 passed. Q17–Q22 are partially executed and still have required blocked
-or approval-gated steps.` Design and Dev have completed the implementation handoff in
+`Q01–Q16 passed. Q17–Q22 are executed; Q17, Q20, Q21, and Q22 retain
+environment or keyboard-evidence blockers.` Design and Dev have completed the
+implementation handoff in
 [`docs/work-items/M2_CHECKLIST_PERSONAL_INBOX.md`](../work-items/M2_CHECKLIST_PERSONAL_INBOX.md).
 On 2026-09-01, independent QA reran and strengthened the automated evidence:
 `pnpm typecheck`, 18 unit tests, 11 integration tests, the full 29-test suite,
 `pnpm build`, and `git diff --check` passed. M2 remains blocked from a QA Pass
 recommendation until the real unpacked-Chrome scenarios below have independent
-evidence from the exact production build in `.output/chrome-mv3`.
+evidence. The ledger is currently `20 Pass, 0 Fail, 4 Blocked`.
 
-## Execution snapshot — 2026-09-01
+## QA artifact targets — 2026-09-02
 
-- Runtime source revision: `eca7a41` (`feat: m2.5 update`). The current
-  uncommitted changes are test and QA-documentation evidence only; production
-  source and output remain those of this revision.
+- Primary ongoing regression target: the freshly rebuilt current checkout at
+  `HEAD` `05a3c3b`, loaded from `.output/chrome-mv3`. This is the newest app UI,
+  uses IndexedDB v3, and legitimately includes the later-phase background
+  worker plus `alarms` and `notifications` permissions.
+- Historical evidence fixtures: exact M1 `72d0ef2` and exact M2 `eca7a41`.
+  These are used only for the M1/v1 -> M2/v2 upgrade and the frozen M2
+  permission/runtime boundary.
+- The old UI appeared when QA temporarily copied exact M2 into the ignored
+  `.output` directory for Q22. The owner rebuilt current `HEAD`; QA reloaded and
+  verified the newest UI before continuing Q18. Historical artifacts must not
+  remain the primary target after a migration case.
+
+## Historical M2 release-candidate snapshot — 2026-09-01
+
+- M2 runtime source revision: `eca7a41` (`feat: m2.5 update`). The hashes below
+  identify that exact candidate; current-checkout regression evidence is
+  recorded separately under the repository Playwright runner update.
 - Package/build: `my-tracker` `0.1.0`, Chrome MV3 production output at
   `.output/chrome-mv3`.
 - Manifest SHA-256:
@@ -48,10 +63,17 @@ evidence from the exact production build in `.output/chrome-mv3`.
   group, so unavailable restart, Offline-throttling, and real-profile upgrade
   steps are not converted to Pass from static or `fake-indexeddb` evidence.
 
-## Playwright MCP execution update — 2026-09-01
+## Playwright MCP execution update — 2026-09-01 and 2026-09-02
 
 Profile: Playwright-managed disposable Chrome profile with installed extension
 ID `apfbmmdkiedhpelmnepegjcaljgnnhip` and only synthetic M2 QA data.
+
+On 2026-09-02, the owner gave fresh approval to delete this profile's prior
+IndexedDB v3 synthetic dataset: 2 goals, 1 phase, 2 tasks, 6 checklist items,
+6 notes, and 0 reminders. QA verified the exact extension ID and counts,
+deleted only database `my-tracker`, and confirmed that the origin then contained
+zero databases. The deletion is permanent; no source, generated artifact, or
+owner Chrome data was deleted.
 
 - Q16 — Pass. Three checklist items exercised check, uncheck, all-complete,
   Todo -> Done -> In Progress, written card progress, native checkbox state,
@@ -60,32 +82,57 @@ ID `apfbmmdkiedhpelmnepegjcaljgnnhip` and only synthetic M2 QA data.
   profile, and comparing four notes plus two task checklists passed. Note body,
   Goal/Task link text, non-default order, count, task status, item title/order,
   mixed checked state, and progress all persisted. The MCP close operation only
-  closed the page; it did not prove a full Chrome-process restart.
-- Q18 — Blocked. One-shot failure plus unchanged second-tab read plus exactly-once
-  Retry passed for note create, body-and-link edit, note reorder, checklist
-  create, checklist check, and checklist uncheck. Each failure kept the prior
-  card/order/checkbox/progress state and exposed `Changes are not saved` plus a
-  contextual Retry. Confirmed note-delete failure/retry is still approval-gated.
-- Q19 — Blocked. The production UI reorder failure stayed visibly and durably
-  unchanged, then Retry committed one adjacent move. Q05 already supplies the
-  post-write rollback companion. The equivalent confirmed-delete UI record is
-  still pending with Q18.
+  closed the page; it did not prove a full Chrome-process restart. On 2026-09-02,
+  the exact-M2 post-upgrade note and checked checklist item also survived closing
+  the only page and opening a new New Tab in the same profile.
+- Q18 — Pass with cross-build browser regression evidence. Exact M2 passed
+  one-shot failure, unchanged second-tab read, and exactly-once Retry for note
+  create, body-and-link edit, note reorder, checklist create, checklist check,
+  and checklist uncheck. On the freshly rebuilt newest app, note create again
+  retained its draft, remained absent in a normal second tab, then Retry created
+  exactly one note. The owner then approved deletion of only
+  `a33c4121-2c4a-414b-aae1-36600e6ac5bd`. Its first confirmed delete failed,
+  retained the note and consequence dialog, showed the save-risk message, and
+  focused `Retry delete`; a normal second tab still showed both persisted
+  notes. Retry permanently deleted exactly that target, announced
+  `Note deleted.`, and reopen preserved the other note with no duplicate or
+  partial result. The current app's edit/reorder/checklist failure UI was not
+  replayed after the rebuild; current automated failure coverage and exact-M2
+  browser evidence cover those unchanged M2 mutation families.
+- Q19 — Pass. The production UI reorder failure stayed visibly and durably
+  unchanged, then Retry committed one adjacent move. The newest app's confirmed
+  delete likewise stayed unchanged through its injected failure, then Retry
+  deleted only the approved target. Q05 supplies the post-write rollback
+  companion for both multi-record operations.
 - Q20 — Blocked. Keyboard-only evidence passed for skip link -> Quick note,
   create focus, edit, link/unlink, reorder, delete-cancel, unsaved-draft
   keep/discard confirmation, dialog focus wrap, task-detail open/close focus
   return, checklist create focus, and Space check/uncheck. The live region made
-  one polite `Checklist item reopened.` announcement. Permanent delete and an
-  independent visual focus-ring recording remain pending.
-- Q21 — Blocked. Generated manifest inspection passed with empty `permissions`
+  one polite `Checklist item reopened.` announcement. On 2026-09-02, independent
+  exact-M2 screenshot evidence captured the keyboard-revealed skip link with a
+  clearly visible double focus ring before it moved focus into Quick note; see
+  [`m2-2026-09-02-q20-skip-link-focus.png`](evidence/m2-2026-09-02-q20-skip-link-focus.png).
+  Permanent delete was completed by pointer for Q18, but the complete
+  keyboard-only delete/confirm/retry path remains pending.
+- Q21 — Blocked. The exact M2 generated manifest passed with empty `permissions`
   and `host_permissions`; Playwright recorded only local `chrome-extension://`
-  HTML, JavaScript, and CSS requests and zero console errors. Neither Playwright
-  MCP nor the permitted Chrome-control surface could set DevTools Network to
-  Offline on the protected extension page, so the actual Offline journey is
-  still required.
-- Q22 — Blocked. The repository contains the M1 source revision `72d0ef2` and
-  the current M2 output only; it does not contain an identified, hashed M1
-  production artifact with safe same-install reload steps. A second controllable
-  profile and protected extension reload are also unavailable in this session.
+  HTML, JavaScript, and CSS requests and zero console errors. The newest current
+  app correctly has later-phase `alarms` and `notifications` permissions plus a
+  background worker, while retaining empty host permissions; those later-phase
+  entries are not an M2 regression. Neither Playwright MCP nor the permitted
+  Chrome-control surface could set DevTools Network to Offline on the protected
+  extension page, so the actual Offline journey is still required.
+- Q22 — Blocked only on the full browser-process restart. On 2026-09-02, the
+  same extension ID and unpacked path loaded exact M1 source `72d0ef2`, created
+  an authentic IndexedDB v1 database, and seeded 2 goals, 2 phases, and 4 tasks.
+  Todo siblings were reordered; Todo, In Progress, and Done were all populated;
+  the Done task contained `completedAt`. Reloading that same installed path with
+  exact M2 source `eca7a41` advanced the database to v2, created empty `notes`
+  and `checklistItems` stores, and preserved every M1 ID, title, parent, status,
+  position, timestamp, priority, notification flag, and completion field.
+  A new note and checked checklist item then survived closing the only page and
+  opening a new New Tab. Playwright did not close and restart the complete Chrome
+  process, so the final restart step remains unavailable.
 
 ## Repository Playwright runner update — 2026-09-01
 
@@ -94,13 +141,41 @@ M2, smoke, and local-boundary journeys, plus the command/evidence policy in
 `docs/qa/QA_AUTOMATION.md`. It builds and loads `.output/chrome-mv3` in a fresh
 Playwright-managed persistent Chromium profile and discards diagnostics on pass.
 
-The combined smoke run passed three production journeys: New Tab ownership and
-local request boundary; M1 Goal -> Phase -> Task move and reopen persistence;
-and M2 note/checklist state with checklist/Kanban independence and reopen
-persistence. These repeatable checks strengthen future regression evidence but
-do not retrospectively convert the required full Chrome restart, DevTools
-Offline, identified M1-artifact upgrade, permanent-delete recovery, or
-independent visual-focus evidence to Pass.
+At current `HEAD` `05a3c3b`, focused unit tests passed 19/19, integration tests
+passed 11/11, `pnpm qa:fast` passed 30/30, the tagged M2 Playwright journey
+passed 1/1, and the combined smoke run passed 3/3. The smoke journeys cover New
+Tab ownership and the local request boundary; M1 Goal -> Phase -> Task movement
+and reopen persistence; and M2 note/checklist state with checklist/Kanban
+independence and reopen persistence.
+
+Current `HEAD` is the primary ongoing regression target. It includes later-phase
+production behavior, IndexedDB v3, an extension background worker, and the
+`alarms` and `notifications` permissions. Those are evaluated against the
+current phase; they do not fail the frozen M2 boundary, which remains evidenced
+by exact M2 `eca7a41`. The current checks strengthen M2 behavior regression
+evidence but do not replace a required full Chrome restart, DevTools Offline, or
+complete keyboard-only journey.
+
+Independent historical builds reproduced the milestone artifacts without
+changing the working tree. M2 source `eca7a41` exactly reproduced the manifest,
+HTML, JavaScript, and CSS hashes recorded above. M1 source `72d0ef2` reproduced
+an empty-permission manifest plus New Tab HTML hash
+`0448ff8aea11f16a3eef167210e029a3e9debfb20d1eb67475f99f54079a95ae`,
+JavaScript hash
+`1d5a241a067f2e5ef88f45d2299ab27dcdf2c05aaae0a8eb164fbddb43344921`,
+and CSS hash
+`65416a2bafcc78ebb2139f25704a4aeb4d17216b4bf3a7301e255449c125a7c6`.
+These identify both source artifacts and are retained as migration fixtures,
+not as the normal browser target.
+
+The initially prepared Playwright profile was not valid for exact-M2 continuation: its
+cached extension manifest was still M2 while its loaded page assets came from
+current `HEAD`, and its IndexedDB had already advanced to v3. Reloading the exact
+M2 files produced the recoverable load-error shell because IndexedDB cannot be
+downgraded from v3 to v2. QA did not clear or alter the data and restored the
+current generated build. After the owner later approved deletion of the exact
+synthetic dataset, QA reset only that disposable database and completed the
+same-path M1-to-M2 upgrade described above.
 
 ## Objective
 
@@ -794,14 +869,14 @@ alone.
 | 14 | Blocked | Q02, Q03, Q16, Q17 | Toggle/reopen passes; full browser restart remains unavailable |
 | 15 | Pass | Q02, Q16 | Bidirectional checklist/task independence passes |
 | 16 | Pass | Q03 | IndexedDB v2 stores/indexes and reconnect snapshot verified |
-| 17 | Blocked | Q04, Q22 | Automated migration passes; real upgrade unavailable |
+| 17 | Pass | Q04, Q22 | Automated migration and same-install exact M1-to-M2 profile upgrade preserve every M1 field |
 | 18 | Pass | Q03, Q17 | Closed/reopened New Tab preserved complete note/checklist state |
-| 19 | Blocked | Q05, Q18, Q19 | Five mutation families pass; confirmed-delete recovery pending |
+| 19 | Pass | Q05, Q18, Q19 | Every M2 mutation family preserves prior state and retries exactly once; confirmed delete passed on newest app |
 | 20 | Pass | Q05 | Post-write note reorder/delete rollback verified after reconnect |
-| 21 | Blocked | Q07, Q09, Q11, Q13, Q20 | Keyboard path passes except permanent delete; visual focus recording pending |
-| 22 | Blocked | Q16, Q18, Q20 | Written/native semantics pass; delete-failure and final announcement evidence pending |
+| 21 | Blocked | Q07, Q09, Q11, Q13, Q20 | Keyboard and visible-focus evidence pass; complete keyboard-only permanent-delete path pending |
+| 22 | Pass | Q16, Q18, Q20 | Written/native semantics, delete consequence/failure, and concise final success announcement pass |
 | 23 | Blocked | Q01, Q21 | Permissions/local requests pass; Offline Chrome evidence unavailable |
-| 24 | Blocked | Q01, Q06-Q21 | Production journey mostly passes; restart, delete-failure, Offline, and upgrade evidence remain |
+| 24 | Blocked | Q01, Q06-Q21 | Production journey mostly passes; restart, keyboard-only permanent delete, and Offline evidence remain |
 
 ## Release recommendation rule
 

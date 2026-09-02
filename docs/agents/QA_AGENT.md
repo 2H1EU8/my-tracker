@@ -10,14 +10,17 @@ and QA subagents.
 
 ## Execution order
 
-1. Resolve the milestone requirement and its `docs/qa/MX_TEST_PLAN.md` scenarios.
-2. Run the narrowest affected unit or integration file.
-3. Run `pnpm qa:fast` once for the deterministic gate.
-4. Run the matching tagged browser journey, for example
-   `pnpm test:e2e:m2`. Use `pnpm test:e2e:smoke` when a shared M1/M2 contract
-   changed.
-5. Run `pnpm qa:release` only for milestone completion or release sign-off.
-6. Execute the manual Chrome checklist only for evidence explicitly classified
+1. Resolve the milestone requirement, its `docs/qa/MX_TEST_PLAN.md` scenarios,
+   and the artifact target. Use the freshly rebuilt current checkout for ongoing
+   regression; use a historical build only for a frozen boundary or migration
+   fixture, following `docs/qa/QA_AUTOMATION.md`.
+2. For a focused change, run the narrowest affected unit or integration file,
+   then `pnpm qa:fast` and the matching tagged browser journey as needed.
+3. Use `pnpm test:e2e:smoke` when a shared milestone contract changed.
+4. For milestone completion or release sign-off, run `pnpm qa:release` once; it
+   already includes type-check, Vitest, build, and the complete Playwright suite.
+   Do not precede it with passing lower gates unless isolating a known failure.
+5. Execute the manual Chrome checklist only for evidence explicitly classified
    as manual-required.
 
 Do not open traces, screenshots, accessibility snapshots, or browser logs for a
