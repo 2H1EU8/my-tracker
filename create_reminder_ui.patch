@@ -1,0 +1,135 @@
+--- src/features/tracker/TrackerApp.tsx
++++ src/features/tracker/TrackerApp.tsx
+@@ -108,6 +108,127 @@
+   );
+ }
+ 
++interface ReminderDialogProps {
++  dialogTitle: string;
++  initialTitle?: string;
++  initialDueAt?: string;
++  initialLinkDraft?: LinkDraft;
++  inputId: string;
++  goals: readonly GoalTree[] | undefined;
++  workspaceFailed: boolean;
++  onSubmit: (title: string, dueAt: string, timeZone: string, linkTarget: NoteLinkTarget) => Promise<unknown>;
++  triggerClassName?: string;
++  triggerIcon?: ReactNode;
++  triggerLabel: string;
++  asMenuItem?: boolean;
++}
++
++function ReminderDialog({
++  dialogTitle,
++  initialTitle = "",
++  initialDueAt = "",
++  initialLinkDraft = { kind: "none" },
++  inputId,
++  goals,
++  workspaceFailed,
++  onSubmit,
++  triggerClassName,
++  triggerIcon,
++  triggerLabel,
++  asMenuItem = false,
++}: ReminderDialogProps) {
++  const [isOpen, setIsOpen] = useState(false);
++  const [title, setTitle] = useState(initialTitle);
++  const [dueAt, setDueAt] = useState(initialDueAt);
++  const [linkDraft, setLinkDraft] = useState<LinkDraft>(initialLinkDraft);
++  const [error, setError] = useState<string>();
++  const [isSaving, setIsSaving] = useState(false);
++  const dialogRef = useRef<HTMLDialogElement>(null);
++  const titleRef = useRef<HTMLInputElement>(null);
++  const triggerRef = useRef<HTMLButtonElement>(null);
++
++  useEffect(() => {
++    if (isOpen) {
++      const dialog = dialogRef.current;
++      if (dialog && !dialog.open) {
++        dialog.showModal();
++        requestAnimationFrame(() => titleRef.current?.focus());
++      }
++    } else {
++      setTitle(initialTitle);
++      setDueAt(initialDueAt);
++      setLinkDraft(initialLinkDraft);
++      setError(undefined);
++      setIsSaving(false);
++    }
++  }, [isOpen, initialTitle, initialDueAt, initialLinkDraft]);
++
++  const submit = async (event: FormEvent) => {
++    event.preventDefault();
++    if (isSaving || title.trim() === "" || dueAt === "") return;
++    
++    let target: NoteLinkTarget;
++    try {
++      target = linkTargetForDraft(linkDraft);
++    } catch (err: any) {
++      setError(err.message);
++      return;
++    }
++
++    setIsSaving(true);
++    setError(undefined);
++    try {
++      const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
++      const localDate = new Date(dueAt);
++      const utcDate = new Date(localDate.getTime() - localDate.getTimezoneOffset() * 60000).toISOString();
++      await onSubmit(title.trim(), utcDate, timeZone, target);
++      setIsOpen(false);
++      triggerRef.current?.focus();
++    } catch (err: any) {
++      setError(getErrorMessage(err));
++      setIsSaving(false);
++    }
++  };
++
++  const close = () => {
++    dialogRef.current?.close();
++    setIsOpen(false);
++    triggerRef.current?.focus();
++  };
++
++  return (
++    <>
++      {asMenuItem ? (
++        <button className="dropdown-item" onClick={() => setIsOpen(true)} ref={triggerRef} type="button">
++          {triggerIcon} {triggerLabel}
++        </button>
++      ) : (
++        <button aria-label={triggerLabel} className={triggerClassName} onClick={() => setIsOpen(true)} ref={triggerRef} title={triggerLabel} type="button">
++          {triggerIcon} {triggerLabel}
++        </button>
++      )}
++      {isOpen && (
++        <dialog className="entity-dialog" onClose={close} ref={dialogRef} onCancel={(e) => { if(isSaving) e.preventDefault(); }}>
++          <form onSubmit={submit}>
++            <div className="dialog-header">
++              <h2>{dialogTitle}</h2>
++              <button className="icon-button dialog-close" disabled={isSaving} onClick={close} type="button"><XIcon size={20} /></button>
++            </div>
++            <div className="dialog-body">
++              <label htmlFor={`${inputId}-title`}>Reminder title</label>
++              <input id={`${inputId}-title`} disabled={isSaving} onChange={(e) => setTitle(e.target.value)} ref={titleRef} required value={title} />
++              
++              <label htmlFor={`${inputId}-due`}>Due Date & Time</label>
++              <input id={`${inputId}-due`} type="datetime-local" disabled={isSaving} onChange={(e) => setDueAt(e.target.value)} required value={dueAt} />
++              
++              <OptionalLinkFields disabled={isSaving} draft={linkDraft} goals={goals} idPrefix={inputId} onChange={setLinkDraft} workspaceFailed={workspaceFailed} />
++              
++              {error && <p className="field-error">{error}</p>}
++            </div>
++            <div className="dialog-actions">
++              <button disabled={isSaving} onClick={close} type="button">Cancel</button>
++              <button className="button-primary" disabled={isSaving || title.trim() === "" || dueAt === ""} type="submit">{isSaving ? "Saving..." : "Save"}</button>
++            </div>
++          </form>
++        </dialog>
++      )}
++    </>
++  );
++}
++
+ interface EntityDialogProps {

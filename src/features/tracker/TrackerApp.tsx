@@ -17,7 +17,11 @@ import {
   XIcon,
   GearIcon,
   PencilIcon,
-  TrashIcon
+  TrashIcon,
+  BellIcon,
+  ClockIcon,
+  CalendarBlankIcon,
+  AlarmIcon
 } from "@phosphor-icons/react";
 import {
   type Dispatch,
@@ -38,6 +42,7 @@ import type { ReorderPlacement, TrackerService } from "../../application/tracker
 import { DomainError } from "../../domain/errors";
 import {
   TASK_STATUSES,
+  type Reminder,
   type ChecklistItem,
   type ChecklistProgress,
   type ChecklistProgressByTask,
@@ -106,6 +111,221 @@ function DropdownMenu({ trigger, children }: { trigger: ReactNode, children: Rea
     </div>
   );
 }
+
+
+interface ReminderDialogProps {
+  dialogTitle: string;
+  initialTitle?: string;
+  initialDueAt?: string;
+  initialLinkDraft?: LinkDraft;
+  inputId: string;
+  goals: readonly GoalTree[] | undefined;
+  workspaceFailed: boolean;
+  onSubmit: (title: string, dueAt: string, timeZone: string, linkTarget: NoteLinkTarget) => Promise<unknown>;
+  triggerClassName?: string;
+  triggerIcon?: ReactNode;
+  triggerLabel: string;
+  asMenuItem?: boolean;
+}
+
+function ReminderDialog({
+  dialogTitle,
+  initialTitle = "",
+  initialDueAt = "",
+  initialLinkDraft = { kind: "none" },
+  inputId,
+  goals,
+  workspaceFailed,
+  onSubmit,
+  triggerClassName,
+  triggerIcon,
+  triggerLabel,
+  asMenuItem = false,
+}: ReminderDialogProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [title, setTitle] = useState(initialTitle);
+  const [dueAt, setDueAt] = useState(initialDueAt);
+  const [linkDraft, setLinkDraft] = useState<LinkDraft>(initialLinkDraft);
+  const [error, setError] = useState<string>();
+  const [isSaving, setIsSaving] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      const dialog = dialogRef.current;
+      if (dialog && !dialog.open) {
+        dialog.showModal();
+        setTitle(initialTitle);
+        setDueAt(initialDueAt);
+        setLinkDraft(initialLinkDraft);
+        requestAnimationFrame(() => titleRef.current?.focus());
+      }
+    } else {
+      setError(undefined);
+      setIsSaving(false);
+    }
+  }, [isOpen, initialTitle, initialDueAt, initialLinkDraft]);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (isSaving || title.trim() === "" || dueAt === "") return;
+    
+    let target: NoteLinkTarget;
+    try {
+      target = linkTargetForDraft(linkDraft);
+    } catch (err: any) {
+      setError(err.message);
+      return;
+    }
+
+    setIsSaving(true);
+    setError(undefined);
+    try {
+      const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const utcDate = new Date(dueAt).toISOString();
+      await onSubmit(title.trim(), utcDate, timeZone, target);
+      setIsOpen(false);
+      triggerRef.current?.focus();
+    } catch (err: any) {
+      setError(getErrorMessage(err));
+      setIsSaving(false);
+    }
+  };
+
+  const close = () => {
+    dialogRef.current?.close();
+    setIsOpen(false);
+    triggerRef.current?.focus();
+  };
+
+  return (
+    <>
+      {asMenuItem ? (
+        <button className="dropdown-item" onClick={() => setIsOpen(true)} ref={triggerRef} type="button">
+          {triggerIcon} {triggerLabel}
+        </button>
+      ) : (
+        <button aria-label={triggerLabel} className={triggerClassName} onClick={(e) => { e.preventDefault(); setIsOpen(true); }} ref={triggerRef} title={triggerLabel} type="button">
+          {triggerIcon}
+        </button>
+      )}
+      {isOpen && (
+        <dialog className="entity-dialog" onClose={close} ref={dialogRef} onCancel={(e) => { if(isSaving) e.preventDefault(); }}>
+          <form onSubmit={submit}>
+            <div className="dialog-header">
+              <h2>{dialogTitle}</h2>
+              <button className="icon-button dialog-close" disabled={isSaving} onClick={close} type="button"><XIcon size={20} /></button>
+            </div>
+            <div className="dialog-body">
+              <label htmlFor={`${inputId}-title`}>Reminder title</label>
+              <input id={`${inputId}-title`} disabled={isSaving} onChange={(e) => setTitle(e.target.value)} ref={titleRef} required value={title} />
+              
+              <label htmlFor={`${inputId}-due`}>Due Date & Time</label>
+              <input id={`${inputId}-due`} type="datetime-local" disabled={isSaving} onChange={(e) => setDueAt(e.target.value)} required value={dueAt} />
+              
+              <OptionalLinkFields disabled={isSaving} draft={linkDraft} goals={goals} idPrefix={inputId} onChange={setLinkDraft} workspaceFailed={workspaceFailed} />
+              
+              {error && <p className="field-error">{error}</p>}
+            </div>
+            <div className="dialog-actions">
+              <button disabled={isSaving} onClick={close} type="button">Cancel</button>
+              <button className="button-primary" disabled={isSaving || title.trim() === "" || dueAt === ""} type="submit">{isSaving ? "Saving..." : "Save"}</button>
+            </div>
+          </form>
+        </dialog>
+      )}
+    </>
+  );
+}
+
+interface ReminderCardProps {
+  goals: readonly GoalTree[] | undefined;
+  reminder: Reminder;
+  onDelete: (reminder: Reminder) => Promise<void>;
+  onEdit: (reminder: Reminder, title: string, dueAt: string, timeZone: string, linkTarget: NoteLinkTarget) => Promise<Reminder>;
+  workspaceFailed: boolean;
+}
+
+function ReminderCard({
+  goals,
+  reminder,
+  onDelete,
+  onEdit,
+  workspaceFailed,
+}: ReminderCardProps) {
+  let linkLabel = undefined;
+  if (reminder.linkedGoalId !== undefined) {
+    const goal = goals?.find(({ goal: candidate }) => candidate.id === reminder.linkedGoalId);
+    linkLabel = goal === undefined ? "Goal unavailable" : `Goal: ${goal.goal.title}`;
+  } else if (reminder.linkedTaskId !== undefined) {
+    const context = findTaskContext(goals, reminder.linkedTaskId);
+    linkLabel = context === undefined
+      ? "Task unavailable"
+      : `Task: ${context.goal.title} / ${context.phase.title} / ${context.task.title}`;
+  }
+
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string>();
+
+  const handleDelete = async () => {
+    if (isDeleting) return;
+    setIsDeleting(true);
+    setDeleteError(undefined);
+    try {
+      await onDelete(reminder);
+    } catch (err: any) {
+      setDeleteError(getErrorMessage(err));
+      setIsDeleting(false);
+    }
+  };
+
+  const initialDueAt = reminder.dueAt ? new Date(new Date(reminder.dueAt).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
+
+  return (
+    <article className="note-card" data-testid={`reminder-card-${reminder.id}`}>
+      <div className="note-card-header">
+        <p className="note-body">{reminder.title}</p>
+        <div className="card-actions note-card-actions">
+          <ReminderDialog
+            dialogTitle="Edit Reminder"
+            initialTitle={reminder.title}
+            initialDueAt={initialDueAt}
+            initialLinkDraft={{
+               kind: reminder.linkedGoalId ? "goal" : reminder.linkedTaskId ? "task" : "none",
+               goalId: reminder.linkedGoalId || (reminder.linkedTaskId ? findTaskContext(goals, reminder.linkedTaskId)?.goal.id : ""),
+               taskId: reminder.linkedTaskId || ""
+            } as LinkDraft}
+            inputId={`edit-reminder-${reminder.id}`}
+            goals={goals}
+            workspaceFailed={workspaceFailed}
+            onSubmit={(title, dueAt, timeZone, target) => onEdit(reminder, title, dueAt, timeZone, target)}
+            triggerClassName="icon-button"
+            triggerIcon={<PencilSimpleIcon size={16} />}
+            triggerLabel="Edit reminder"
+          />
+          <DropdownMenu trigger={<button className="icon-button"><DotsThreeIcon size={16} /></button>}>
+            <button className="dropdown-item danger" onClick={handleDelete} type="button">
+              <TrashIcon size={16} /> Delete
+            </button>
+          </DropdownMenu>
+        </div>
+      </div>
+      <p className="note-context">
+        <AlarmIcon size={14} style={{ verticalAlign: 'middle', marginRight: '4px', color: reminder.state === 'fired' ? 'var(--text-danger)' : 'inherit' }} />
+        <span style={{ color: reminder.state === 'fired' ? 'var(--text-danger)' : 'inherit' }}>
+          {reminder.state === 'fired' ? 'Fired ' : 'Due '} 
+          {new Date(reminder.dueAt).toLocaleString()}
+        </span>
+      </p>
+      {linkLabel && <p className="note-context">{linkLabel}</p>}
+      {deleteError && <p className="field-error">{deleteError}</p>}
+    </article>
+  );
+}
+
+// END REMINDER COMP
 
 interface EntityDialogProps {
   dialogTitle: string;
@@ -1150,7 +1370,7 @@ export function TrackerApp({ service }: TrackerAppProps) {
           setSaveState("idle");
           throw error;
         }
-        setSaveState(retryMode === "local" ? "idle" : "failed");
+        setSaveState("failed");
         setRetryOperation(
           retryMode === "global"
             ? {
@@ -1168,6 +1388,7 @@ export function TrackerApp({ service }: TrackerAppProps) {
         } else {
           setAnnouncement("This action was not saved. Retry the last action.");
         }
+        console.error("Mutation failed:", error);
         throw error;
       }
 
@@ -1248,6 +1469,33 @@ export function TrackerApp({ service }: TrackerAppProps) {
             goalsError={workspaceLoadError}
             inbox={inbox}
             inboxError={inboxLoadError}
+            onCreateReminder={async (title, dueAt, timeZone, linkTarget) => {
+              return performMutation(
+                async () => service.createReminder(title, dueAt, timeZone, linkTarget),
+                "Reminder added.",
+                () => ".capture-bar-input",
+                "local",
+                refreshInbox
+              );
+            }}
+            onDeleteReminder={async (reminder) => {
+              return performMutation(
+                async () => service.deleteReminder(reminder.id),
+                "Reminder deleted.",
+                undefined,
+                "local",
+                refreshInbox
+              );
+            }}
+            onEditReminder={async (reminder, title, dueAt, timeZone, linkTarget) => {
+              return performMutation(
+                async () => service.editReminder(reminder.id, title, dueAt, timeZone, linkTarget),
+                "Reminder updated.",
+                () => `[data-testid="reminder-card-${reminder.id}"] .icon-button`,
+                "local",
+                refreshInbox
+              );
+            }}
             onCreateNote={(body, linkTarget) => {
               let createdId = "";
               return performMutation(
@@ -1333,6 +1581,14 @@ export function TrackerApp({ service }: TrackerAppProps) {
           />
         ) : (
           <GoalView
+            onSetTaskDeadline={async (taskId, dueAt, timeZone, notifyAtDue) => {
+              return performMutation(
+                async () => service.setTaskDeadline(taskId, dueAt, timeZone, notifyAtDue),
+                "Task deadline updated.",
+                undefined,
+                "local"
+              );
+            }}
             checklistProgress={checklistProgress}
             checklistProgressError={checklistProgressLoadError}
             goalTree={selectedGoal}
@@ -1511,6 +1767,9 @@ interface HomeViewProps {
   onImportPlan: (plan: unknown) => Promise<any>;
   onExportBackup: () => Promise<unknown>;
   onRestoreBackup: (backupData: unknown) => Promise<unknown>;
+  onCreateReminder: (title: string, dueAt: string, timeZone: string, linkTarget: NoteLinkTarget) => Promise<Reminder>;
+  onDeleteReminder: (reminder: Reminder) => Promise<void>;
+  onEditReminder: (reminder: Reminder, title: string, dueAt: string, timeZone: string, linkTarget: NoteLinkTarget) => Promise<Reminder>;
 }
 
 function HomeView({
@@ -1530,6 +1789,9 @@ function HomeView({
   onImportPlan,
   onExportBackup,
   onRestoreBackup,
+  onCreateReminder,
+  onDeleteReminder,
+  onEditReminder,
 }: HomeViewProps) {
   return (
     <div className="home-layout">
@@ -1539,9 +1801,12 @@ function HomeView({
           goals={goals}
           inbox={inbox}
           loadError={inboxError}
-          onDelete={onDeleteNote}
-          onEdit={onEditNote}
-          onReorder={onReorderNote}
+          onDeleteNote={onDeleteNote}
+          onEditNote={onEditNote}
+          onReorderNote={onReorderNote}
+          onCreateReminder={onCreateReminder}
+          onDeleteReminder={onDeleteReminder}
+          onEditReminder={onEditReminder}
           onRetry={onRetryInbox}
           workspaceFailed={goalsError !== undefined}
         />
@@ -1557,11 +1822,23 @@ function HomeView({
                 label="Note content"
                 multiline={true}
                 onSubmit={(body) => onCreateNote(body, { kind: "none" })}
-                placeholder="Capture a note or reminder"
+                placeholder="Capture a note"
                 submitLabel="Create note"
                 triggerClassName="icon-button"
                 triggerIcon={<PlusIcon aria-hidden="true" size={18} />}
                 triggerLabel="New note"
+              />
+              <ReminderDialog
+                dialogTitle="New Reminder"
+                inputId="new-reminder-body"
+                goals={goals}
+                workspaceFailed={goalsError !== undefined}
+                onSubmit={async (title, dueAt, timeZone, linkTarget) => {
+                  await onCreateReminder(title, dueAt, timeZone, linkTarget);
+                }}
+                triggerClassName="icon-button"
+                triggerIcon={<BellIcon aria-hidden="true" size={18} />}
+                triggerLabel="New reminder"
               />
               <BackupSettingsDialog onExport={onExportBackup} onRestore={onRestoreBackup} />
               <ImportPlanDialog onImport={onImportPlan} />
@@ -1655,14 +1932,16 @@ function HomeView({
 interface QuickNoteComposerProps {
   goals: readonly GoalTree[] | undefined;
   isReady: boolean;
-  onCreate: (body: string, linkTarget: NoteLinkTarget) => Promise<Note>;
+  onCreateNote: (body: string, linkTarget: NoteLinkTarget) => Promise<Note>;
+  onCreateReminder: (title: string, dueAt: string, timeZone: string, linkTarget: NoteLinkTarget) => Promise<Reminder>;
   workspaceFailed: boolean;
 }
 
 function QuickNoteComposer({
   goals,
   isReady,
-  onCreate,
+  onCreateNote,
+  onCreateReminder,
   workspaceFailed,
 }: QuickNoteComposerProps) {
   const [draft, setDraft] = useState("");
@@ -1678,7 +1957,7 @@ function QuickNoteComposer({
     setIsSaving(true);
     setError(undefined);
     try {
-      await onCreate(draft, { kind: "none" });
+      await onCreateNote(draft, { kind: "none" });
       setDraft("");
     } catch (submissionError) {
       setError(getErrorMessage(submissionError));
@@ -1701,6 +1980,20 @@ function QuickNoteComposer({
           value={draft}
           aria-invalid={error === undefined ? undefined : true}
         />
+        <ReminderDialog
+          dialogTitle="New Reminder"
+          initialTitle={draft}
+          inputId="capture-bar-reminder"
+          goals={goals}
+          workspaceFailed={workspaceFailed}
+          onSubmit={async (title, dueAt, timeZone, target) => {
+             await onCreateReminder(title, dueAt, timeZone, target);
+             setDraft("");
+          }}
+          triggerClassName="icon-button"
+          triggerIcon={<BellIcon aria-hidden="true" size={16} />}
+          triggerLabel="Create reminder"
+        />
         <span className="shortcut-hint">N</span>
       </form>
       {error && <p className="field-error">{error}</p>}
@@ -1712,13 +2005,16 @@ interface InboxViewProps {
   goals: readonly GoalTree[] | undefined;
   inbox: InboxSnapshot | undefined;
   loadError: string | undefined;
-  onDelete: (note: Note) => Promise<Note>;
-  onEdit: (note: Note, body: string, linkTarget: NoteLinkTarget) => Promise<Note>;
-  onReorder: (
+  onDeleteNote: (note: Note) => Promise<Note>;
+  onEditNote: (note: Note, body: string, linkTarget: NoteLinkTarget) => Promise<Note>;
+  onReorderNote: (
     note: Note,
     target: Note,
     placement: ReorderPlacement,
   ) => Promise<Note>;
+  onCreateReminder: (title: string, dueAt: string, timeZone: string, linkTarget: NoteLinkTarget) => Promise<Reminder>;
+  onDeleteReminder: (reminder: Reminder) => Promise<void>;
+  onEditReminder: (reminder: Reminder, title: string, dueAt: string, timeZone: string, linkTarget: NoteLinkTarget) => Promise<Reminder>;
   onRetry: () => Promise<unknown>;
   workspaceFailed: boolean;
 }
@@ -1727,18 +2023,30 @@ function InboxView({
   goals,
   inbox,
   loadError,
-  onDelete,
-  onEdit,
-  onReorder,
+  onDeleteNote,
+  onEditNote,
+  onReorderNote,
+  onCreateReminder,
+  onDeleteReminder,
+  onEditReminder,
   onRetry,
   workspaceFailed,
 }: InboxViewProps) {
-  const notes = inbox?.items.filter(item => item.kind === "note").map((item: any) => item.note);
+  const [filter, setFilter] = useState<"all" | "notes" | "reminders">("all");
+  const allItems = inbox?.items || [];
+  const notes = allItems.filter(item => item.kind === "note").map((item: any) => item.note);
+  const filteredItems = filter === "all" ? allItems : allItems.filter(item => item.kind === (filter === "notes" ? "note" : "reminder"));
+  
   return (
     <section aria-labelledby="inbox-title" className="inbox-column">
       <h2 id="inbox-title" className="sr-only">Inbox</h2>
-      <div className="inbox-header-actions">
-        <p className="inbox-count-label">Inbox &middot; {notes === undefined ? "—" : notes.length}</p>
+      <div className="inbox-header-actions" style={{ flexDirection: "column", alignItems: "flex-start", gap: "8px" }}>
+        <p className="inbox-count-label">Inbox &middot; {filteredItems.length}</p>
+        <div className="inbox-filters" style={{ display: "flex", gap: "8px" }}>
+          <button className={filter === "all" ? "button-primary" : "button-secondary"} onClick={() => setFilter("all")} type="button">All</button>
+          <button className={filter === "notes" ? "button-primary" : "button-secondary"} onClick={() => setFilter("notes")} type="button">Notes</button>
+          <button className={filter === "reminders" ? "button-primary" : "button-secondary"} onClick={() => setFilter("reminders")} type="button">Reminders</button>
+        </div>
       </div>
       
       {loadError !== undefined ? (
@@ -1754,19 +2062,36 @@ function InboxView({
         <p className="inbox-empty">No notes yet. Add one above.</p>
       ) : (
         <div className="inbox-list-compact">
-          {notes.map((note, index) => (
-            <NoteCard
-              goals={goals}
-              key={note.id}
-              nextNote={notes[index + 1]}
-              note={note}
-              onDelete={onDelete}
-              onEdit={onEdit}
-              onReorder={onReorder}
-              previousNote={notes[index - 1]}
-              workspaceFailed={workspaceFailed}
-            />
-          ))}
+          {filteredItems.map((item, index) => {
+            if (item.kind === "note") {
+              const note = item.note;
+              const noteIndex = notes.findIndex(n => n.id === note.id);
+              return (
+                <NoteCard
+                  goals={goals}
+                  key={note.id}
+                  nextNote={notes[noteIndex + 1]}
+                  note={note}
+                  onDelete={onDeleteNote}
+                  onEdit={onEditNote}
+                  onReorder={onReorderNote}
+                  previousNote={notes[noteIndex - 1]}
+                  workspaceFailed={workspaceFailed}
+                />
+              );
+            } else {
+              return (
+                <ReminderCard
+                  key={item.reminder.id}
+                  goals={goals}
+                  reminder={item.reminder}
+                  onDelete={onDeleteReminder}
+                  onEdit={onEditReminder}
+                  workspaceFailed={workspaceFailed}
+                />
+              );
+            }
+          })}
         </div>
       )}
     </section>
@@ -2260,6 +2585,7 @@ interface GoalViewProps {
   selectedPhase: PhaseTree | undefined;
   onRenameChecklistItem: (taskId: string, checklistItemId: string, title: string) => Promise<unknown>;
   onDeleteChecklistItem: (taskId: string, checklistItemId: string) => Promise<unknown>;
+  onSetTaskDeadline: (taskId: string, dueAt: string | undefined, timeZone: string | undefined, notifyAtDue: boolean) => Promise<Task>;
 }
 
 function GoalView({
@@ -2282,6 +2608,7 @@ function GoalView({
   onDeleteChecklistItem,
   onRetryChecklistProgress,
   selectedPhase,
+  onSetTaskDeadline,
 }: GoalViewProps) {
   const [dragOverPhase, setDragOverPhase] = useState<string | null>(null);
 
@@ -2384,6 +2711,7 @@ function GoalView({
           </nav>
           {selectedPhase === undefined ? null : (
             <Board
+              onSetTaskDeadline={onSetTaskDeadline}
               checklistProgress={checklistProgress}
               onCreateChecklistItem={onCreateChecklistItem}
               onCreateTask={onCreateTask}
@@ -2425,6 +2753,7 @@ interface BoardProps {
   ) => Promise<ChecklistItem>;
   onRenameChecklistItem: (taskId: string, checklistItemId: string, title: string) => Promise<unknown>;
   onDeleteChecklistItem: (taskId: string, checklistItemId: string) => Promise<unknown>;
+  onSetTaskDeadline: (taskId: string, dueAt: string | undefined, timeZone: string | undefined, notifyAtDue: boolean) => Promise<Task>;
 }
 
 function Board({
@@ -2440,6 +2769,7 @@ function Board({
   onRenameChecklistItem,
   onDeleteChecklistItem,
   phaseTree,
+  onSetTaskDeadline,
 }: BoardProps) {
   const [dragOverCol, setDragOverCol] = useState<TaskStatus | null>(null);
 
@@ -2515,6 +2845,7 @@ function Board({
                 <div className="task-list" style={{ pointerEvents: dragOverCol === status ? 'none' : 'auto' }}>
                   {tasks.map((task, index) => (
                     <TaskCard
+                      onSetTaskDeadline={onSetTaskDeadline}
                       checklistProgress={checklistProgress?.[task.id]}
                       key={task.id}
                       nextTask={tasks[index + 1]}
@@ -2561,6 +2892,7 @@ interface TaskCardProps {
   ) => Promise<ChecklistItem>;
   onRenameChecklistItem: (taskId: string, checklistItemId: string, title: string) => Promise<unknown>;
   onDeleteChecklistItem: (taskId: string, checklistItemId: string) => Promise<unknown>;
+  onSetTaskDeadline: (taskId: string, dueAt: string | undefined, timeZone: string | undefined, notifyAtDue: boolean) => Promise<Task>;
 }
 
 function TaskCard({
@@ -2574,6 +2906,7 @@ function TaskCard({
   onSetChecklistItemCompleted,
   onRenameChecklistItem,
   onDeleteChecklistItem,
+  onSetTaskDeadline,
   previousTask,
   task,
 }: TaskCardProps) {
@@ -2688,7 +3021,8 @@ function TaskCard({
       <div className="task-card-header" style={{ pointerEvents: dragOver ? 'none' : 'auto' }}>
         <TaskDetailsDialog
           checklistState={checklistState}
-          onCreateChecklistItem={onCreateChecklistItem}
+          onSetTaskDeadline={onSetTaskDeadline}
+        onCreateChecklistItem={onCreateChecklistItem}
           onRefreshChecklist={refreshChecklist}
           onSetChecklistItemCompleted={onSetChecklistItemCompleted}
           onRenameChecklistItem={onRenameChecklistItem}
@@ -2836,6 +3170,7 @@ interface TaskDetailsDialogProps {
   onRenameTask: (task: Task, title: string) => Promise<unknown>;
   onRenameChecklistItem: (taskId: string, checklistItemId: string, title: string) => Promise<unknown>;
   onDeleteChecklistItem: (taskId: string, checklistItemId: string) => Promise<unknown>;
+  onSetTaskDeadline: (taskId: string, dueAt: string | undefined, timeZone: string | undefined, notifyAtDue: boolean) => Promise<Task>;
 }
 
 function TaskDetailsDialog({
@@ -2845,6 +3180,7 @@ function TaskDetailsDialog({
   onSetChecklistItemCompleted,
   onRenameChecklistItem,
   onDeleteChecklistItem,
+  onSetTaskDeadline,
   setChecklistState,
   task,
   onRenameTask,
@@ -2852,6 +3188,11 @@ function TaskDetailsDialog({
   const [isOpen, setIsOpen] = useState(false);
   const [isOpening, setIsOpening] = useState(false);
   const [draft, setDraft] = useState("");
+  const initialTaskDueAt = task.dueAt ? new Date(new Date(task.dueAt).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
+  const [deadlineDueAt, setDeadlineDueAt] = useState(initialTaskDueAt);
+  const [notifyAtDue, setNotifyAtDue] = useState(task.notifyAtDue || false);
+  const [isSavingDeadline, setIsSavingDeadline] = useState(false);
+  const [deadlineError, setDeadlineError] = useState<string>();
   const [createError, setCreateError] = useState<string>();
   const [pendingToggleIds, setPendingToggleIds] = useState<Set<string>>(
     () => new Set(),
@@ -3047,6 +3388,53 @@ function TaskDetailsDialog({
             </header>
 
             <div className="task-detail-content">
+              <div className="task-deadline-section" style={{ marginBottom: "24px", padding: "12px", background: "var(--surface-2)", borderRadius: "8px" }}>
+                <h3 style={{ margin: "0 0 12px 0", fontSize: "14px" }}>Task Deadline</h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <label htmlFor={`${inputId}-deadline`}>Due Date & Time (Optional)</label>
+                  <input 
+                    id={`${inputId}-deadline`} 
+                    type="datetime-local" 
+                    value={deadlineDueAt} 
+                    onChange={(e) => setDeadlineDueAt(e.target.value)} 
+                    disabled={isSavingDeadline} 
+                  />
+                  <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+                    <input 
+                      type="checkbox" 
+                      checked={notifyAtDue} 
+                      onChange={(e) => setNotifyAtDue(e.target.checked)} 
+                      disabled={isSavingDeadline || !deadlineDueAt} 
+                    />
+                    Notify at due time
+                  </label>
+                  <button 
+                    className="button-secondary" 
+                    disabled={isSavingDeadline || (deadlineDueAt === initialTaskDueAt && notifyAtDue === task.notifyAtDue)}
+                    onClick={async () => {
+                      setIsSavingDeadline(true);
+                      setDeadlineError(undefined);
+                      try {
+                        let utcDate = undefined;
+                        let timeZone = undefined;
+                        if (deadlineDueAt) {
+                           timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                           utcDate = new Date(deadlineDueAt).toISOString();
+                        }
+                        await onSetTaskDeadline(task.id, utcDate, timeZone, notifyAtDue);
+                      } catch (err: any) {
+                        setDeadlineError(getErrorMessage(err));
+                      } finally {
+                        setIsSavingDeadline(false);
+                      }
+                    }}
+                    style={{ alignSelf: "flex-start", marginTop: "8px" }}
+                  >
+                    {isSavingDeadline ? "Saving..." : "Save Deadline"}
+                  </button>
+                  {deadlineError && <p className="field-error">{deadlineError}</p>}
+                </div>
+              </div>
               <div className="checklist-heading">
                 <h3>Checklist</h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

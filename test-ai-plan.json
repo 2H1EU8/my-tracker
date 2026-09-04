@@ -1,0 +1,1 @@
+{"$schema":"https://my-tracker.local/schemas/my-tracker-ai-plan.schema.json","format":"my-tracker/ai-plan","schemaVersion":"1.0.0","title":"M4 Automated QA","goals":[{"externalKey":"goal-m4","title":"M4 Imported Goal","phases":[{"externalKey":"phase-m4","title":"M4 Imported Phase","tasks":[{"externalKey":"task-m4","title":"M4 Imported Task"}]}]}]}

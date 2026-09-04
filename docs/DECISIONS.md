@@ -143,6 +143,14 @@ This file records approved product and architecture decisions. Update it when a 
   and atomic normalization tests. The public interchange schemas and their
   version numbers do not change.
 
+## D-016 — Abandon runtime `ajv.compile()` for Manifest V3 CSP compliance
+
+- Date: 2026-09-04
+- Status: accepted
+- Decision: Do not use `ajv.compile()` (or any validator relying on `new Function()` / `eval`) at runtime in the Chrome extension. We must switch to a CSP-safe validation strategy (e.g., pre-compiling schemas to standalone code at build time, or using a strictly interpretive validator).
+- Rationale: Manifest V3 strictly enforces a Content Security Policy that forbids `unsafe-eval`. `ajv` by default generates and evaluates code for performance, which crashes the extension during M4 (AI Plan Import) and M5 (Backup/Restore).
+- Consequence: M4 and M5 are blocked from QA sign-off until Dev updates the schema validation pipeline to execute within MV3 constraints while maintaining Draft 2020-12 support.
+
 ## Deferred decisions
 
 | Topic | Decide by | Default until decided |
@@ -153,3 +161,13 @@ This file records approved product and architecture decisions. Update it when a 
 | Import merge/update semantics | Post-MVP discovery | Create-only import. |
 | iCalendar adapter scope | Post-MVP discovery | JSON only. |
 | Numeric performance budgets | M6 after M1 baseline | Use seeded datasets and record baseline first. |
+
+## 2026-09-04: UI Patterns for Reminders and Deadlines
+
+**Context**: Implementing the UI for setting up standalone Reminders and Task Deadlines in Phase M3.
+**Decision**:
+- We introduced a `ReminderDialog` component to capture `dueAt` for Reminders.
+- For Notes, we repurposed the `QuickNoteComposer` input bar. Next to the main submission, a Bell icon trigger directly opens `ReminderDialog` pre-filled with the drafted text, smoothly escalating a quick thought into a scheduled reminder.
+- In `InboxView`, we added filters (All, Notes, Reminders) to seamlessly mix and toggle both types of capture items.
+- We added an integrated `TaskDeadlineSection` in `TaskDetailsDialog`, placing optional datetime-local and a "notify at due" checkbox right above the checklist list. This preserves the modal interaction for setting deadlines while reducing clicks.
+**Consequences**: The "capture-bar" does double duty effectively without being overloaded, keeping it keyboard-friendly. `TaskDetailsDialog` continues to act as the primary detailed configuration surface for tasks. Fired reminders are visually distinct but reside natively in the Inbox feed.

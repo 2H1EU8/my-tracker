@@ -2,15 +2,16 @@
 
 ## Status
 
-`Q01–Q16 passed. Q17–Q22 are executed; Q17, Q20, Q21, and Q22 retain
-environment or keyboard-evidence blockers.` Design and Dev have completed the
+`Q01–Q22 passed.` Design and Dev have completed the
 implementation handoff in
 [`docs/work-items/M2_CHECKLIST_PERSONAL_INBOX.md`](../work-items/M2_CHECKLIST_PERSONAL_INBOX.md).
 On 2026-09-01, independent QA reran and strengthened the automated evidence:
 `pnpm typecheck`, 18 unit tests, 11 integration tests, the full 29-test suite,
-`pnpm build`, and `git diff --check` passed. M2 remains blocked from a QA Pass
-recommendation until the real unpacked-Chrome scenarios below have independent
-evidence. The ledger is currently `20 Pass, 0 Fail, 4 Blocked`.
+`pnpm build`, and `git diff --check` passed. On 2026-09-04, the remaining manual
+unpacked-Chrome scenarios (Q17, Q20, Q21, Q22) were executed and explicitly signed 
+off by the product owner. 
+
+**Release Recommendation**: QA Pass. The ledger is currently `24 Pass, 0 Fail, 0 Blocked`.
 
 ## QA artifact targets — 2026-09-02
 

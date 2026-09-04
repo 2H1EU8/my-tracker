@@ -3,6 +3,10 @@ import { browser } from "wxt/browser";
 
 export class BrowserAlarmScheduler implements AlarmScheduler {
   async scheduleReminderAlarm(id: string, dueAt: string): Promise<void> {
+    if (!browser.alarms) {
+      console.warn("browser.alarms is undefined. Skipping reminder alarm scheduling.");
+      return;
+    }
     const time = new Date(dueAt).getTime();
     if (time > Date.now()) {
       await browser.alarms.create(`my-tracker:reminder:${id}`, {
@@ -16,10 +20,15 @@ export class BrowserAlarmScheduler implements AlarmScheduler {
   }
 
   async cancelReminderAlarm(id: string): Promise<void> {
+    if (!browser.alarms) return;
     await browser.alarms.clear(`my-tracker:reminder:${id}`);
   }
 
   async scheduleTaskDeadlineAlarm(id: string, dueAt: string): Promise<void> {
+    if (!browser.alarms) {
+      console.warn("browser.alarms is undefined. Skipping task deadline alarm scheduling.");
+      return;
+    }
     const time = new Date(dueAt).getTime();
     if (time > Date.now()) {
       await browser.alarms.create(`my-tracker:task-deadline:${id}`, {
@@ -33,10 +42,12 @@ export class BrowserAlarmScheduler implements AlarmScheduler {
   }
 
   async cancelTaskDeadlineAlarm(id: string): Promise<void> {
+    if (!browser.alarms) return;
     await browser.alarms.clear(`my-tracker:task-deadline:${id}`);
   }
 
   async clearAllAlarms(): Promise<void> {
+    if (!browser.alarms) return;
     await browser.alarms.clearAll();
   }
 }

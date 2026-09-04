@@ -14,7 +14,7 @@ import type { ChecklistItem, Goal, Note, Phase, Task, Reminder } from "../../dom
 import { sortByPosition } from "../../domain/rules";
 
 export const TRACKER_DATABASE_NAME = "my-tracker";
-export const TRACKER_DATABASE_VERSION = 3;
+export const TRACKER_DATABASE_VERSION = 4;
 
 const INDEX_GOAL_POSITION = "by-position";
 const INDEX_PHASE_GOAL_POSITION = "by-goal-position";
